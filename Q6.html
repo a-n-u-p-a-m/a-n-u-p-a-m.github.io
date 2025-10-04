@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Q6 - User Interaction Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500&display=swap" rel="stylesheet">
+
+<style>
+body {
+  font-family: 'Quicksand', sans-serif;
+  background: linear-gradient(135deg, #e3ffe7, #d9e7ff);
+  margin: 0;
+  padding: 20px;
+  text-align: center;
+}
+h1 { color: #003366; }
+button, select, img, input {
+  margin: 15px;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+}
+button { background-color: #0077cc; color: white; }
+button:hover { background-color: #005fa3; }
+select, input {
+  border: 1px solid #ccc;
+  padding: 10px;
+}
+img {
+  width: 120px;
+  height: auto;
+  border-radius: 10px;
+  transition: transform 0.2s;
+}
+img:hover { transform: scale(1.05); }
+#log {
+  margin-top: 20px;
+  background: #fff;
+  padding: 15px;
+  border-radius: 10px;
+  max-height: 300px;
+  overflow-y: auto;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  text-align: left;
+}
+footer { margin-top: 40px; color: #333; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<h1>Q6 – Click & Page View Tracker</h1>
+
+<p>Interact with the page elements below 👇</p>
+
+<button id="testButton">Click Me</button>
+<select id="dropdown">
+  <option>Select option</option>
+  <option>HTML</option>
+  <option>CSS</option>
+  <option>JavaScript</option>
+</select>
+<input type="text" placeholder="Type something..." />
+<br>
+<img src="https://upload.wikimedia.org/wikipedia/commons/6/6a/JavaScript-logo.png" alt="JS Logo">
+
+<div id="log"><b>Event Log:</b></div>
+
+<footer>Software Systems Development • IIIT Hyderabad</footer>
+
+<script>
+// 🧠 Utility: Get readable timestamp
+function getTimestamp() {
+  return new Date().toLocaleString();
+}
+
+// 🧩 Function to identify element type
+function identifyElement(target) {
+  const tag = target.tagName.toLowerCase();
+  if (tag === "button") return "button";
+  if (tag === "select") return "drop_down";
+  if (tag === "img") return "image";
+  if (tag === "input") return "text_input";
+  return tag;
+}
+
+// 🕵️‍♂️ Function to log and display event info
+function logEvent(eventType, target) {
+  const timestamp = getTimestamp();
+  const elementType = identifyElement(target);
+  const message = `Timestamp: ${timestamp} | Event: ${eventType} | Object: ${elementType}`;
+  console.log(message); // ✅ print on console
+  const logBox = document.getElementById("log");
+  const entry = document.createElement("div");
+  entry.textContent = message;
+  logBox.appendChild(entry);
+}
+
+// 🖱️ Capture all click events on the page
+document.addEventListener("click", (e) => {
+  logEvent("click", e.target);
+});
+
+// 👀 Log page view on load
+window.addEventListener("load", () => {
+  logEvent("view", document.body);
+});
+</script>
+
+</body>
+</html>
