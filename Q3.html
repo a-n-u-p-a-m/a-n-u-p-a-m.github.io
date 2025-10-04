@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Q3 – Jigsaw Puzzle Maker (Fixed)</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600&display=swap" rel="stylesheet">
+<style>
+body {
+  margin:0; padding:0;
+  font-family:'Quicksand',sans-serif;
+  background:linear-gradient(135deg,#88ccee,#ee88cc);
+  min-height:100vh; display:flex; flex-direction:column;
+  align-items:center; justify-content:flex-start;
+  color:#222;
+}
+h1 { margin-top:20px; color:#fff; text-shadow:1px 1px 3px rgba(0,0,0,.4); }
+.controls {
+  background:rgba(255,255,255,0.95);
+  border-radius:12px; padding:16px 24px; margin:20px auto;
+  box-shadow:0 4px 12px rgba(0,0,0,.15);
+  display:flex; flex-wrap:wrap; gap:12px; justify-content:center;
+}
+label { font-weight:600; }
+input[type="file"],select,button {
+  font-family:'Quicksand',sans-serif; font-size:15px;
+  padding:6px 10px; border-radius:6px; border:1px solid #ccc;
+}
+button {
+  background:#0077cc; color:#fff; cursor:pointer;
+  transition:.2s; border:none;
+}
+button:hover { background:#005fa3; }
+#board {
+  display:grid; margin:10px auto;
+  max-width:90vmin; max-height:90vmin;
+  width:90vmin; height:90vmin;
+  border:4px solid #fff; border-radius:10px;
+  box-shadow:0 4px 10px rgba(0,0,0,.3);
+  background:#fafafa;
+}
+.piece {
+  background-size:cover;
+  background-repeat:no-repeat;
+  cursor:grab;
+  border:1px solid rgba(0,0,0,0.1);
+  box-sizing:border-box;
+}
+.piece.dragging { opacity:0.6; }
+.stats {
+  background:rgba(255,255,255,0.95);
+  border-radius:8px; padding:8px 20px; margin:10px;
+  box-shadow:0 2px 6px rgba(0,0,0,.15);
+  display:flex; gap:24px; font-weight:600;
+}
+footer {
+  margin-top:auto; color:#fff; font-size:14px; padding:16px;
+}
+</style>
+</head>
+<body>
+<h1>🧩 Jigsaw Puzzle Maker</h1>
+
+<div class="controls">
+  <label>Upload Image:
+    <input type="file" id="imgInput" accept="image/*">
+  </label>
+  <label>Difficulty:
+    <select id="difficulty">
+      <option value="4">Easy (4 pieces)</option>
+      <option value="9">Medium (9 pieces)</option>
+      <option value="16">Hard (16 pieces)</option>
+      <option value="25">Expert (25 pieces)</option>
+    </select>
+  </label>
+  <button id="generate">Generate Puzzle</button>
+  <button id="check">Check Solution</button>
+  <button id="reset">Reset</button>
+</div>
+
+<div class="stats">
+  <div>⏱️ Time: <span id="timer">00:00</span></div>
+  <div>🧮 Moves: <span id="moves">0</span></div>
+</div>
+
+<div id="board"></div>
+
+<footer>Q3 • Software Systems Development • IIIT Hyderabad</footer>
+
+<script>
+const imgInput=document.getElementById('imgInput');
+const diffSel=document.getElementById('difficulty');
+const board=document.getElementById('board');
+const timerEl=document.getElementById('timer');
+const movesEl=document.getElementById('moves');
+let imgURL=null; let totalPieces=0; let size=0;
+let moves=0; let startTime=null; let timerInterval=null;
+
+// Load image file as dataURL
+imgInput.addEventListener('change', e=>{
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    imgURL=reader.result;
+    alert("✅ Image loaded! Now click 'Generate Puzzle'.");
+  };
+  reader.readAsDataURL(file);
+});
+
+// Generate puzzle grid
+document.getElementById('generate').addEventListener('click',()=>{
+  if(!imgURL){alert("Please upload an image first!"); return;}
+  totalPieces=parseInt(diffSel.value);
+  size=Math.sqrt(totalPieces);
+  board.innerHTML='';
+  board.style.gridTemplateColumns=`repeat(${size}, 1fr)`;
+  board.style.gridTemplateRows=`repeat(${size}, 1fr)`;
+
+  const temp=[];
+  for(let r=0;r<size;r++){
+    for(let c=0;c<size;c++){
+      const div=document.createElement('div');
+      div.classList.add('piece');
+      div.style.backgroundImage=`url(${imgURL})`;
+      div.style.backgroundPosition=`${(c/(size-1))*100}% ${(r/(size-1))*100}%`;
+      div.style.backgroundSize=`${size*100}% ${size*100}%`;
+      div.draggable=true;
+      div.dataset.correct=r*size+c;
+      temp.push(div);
+    }
+  }
+
+  shuffle(temp);
+  temp.forEach(p=>board.appendChild(p));
+  moves=0; movesEl.textContent=moves;
+  startTimer();
+  enableDragDrop();
+});
+
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+}
+
+function enableDragDrop(){
+  let dragged=null;
+  board.querySelectorAll('.piece').forEach(p=>{
+    p.addEventListener('dragstart',()=>{
+      dragged=p; p.classList.add('dragging');
+    });
+    p.addEventListener('dragend',()=>p.classList.remove('dragging'));
+    p.addEventListener('dragover',e=>e.preventDefault());
+    p.addEventListener('drop',()=>{
+      if(dragged===p) return;
+      const draggedNext=dragged.nextSibling;
+      const pNext=p.nextSibling;
+      board.insertBefore(dragged,pNext);
+      board.insertBefore(p,draggedNext);
+      moves++; movesEl.textContent=moves;
+    });
+  });
+}
+
+document.getElementById('check').addEventListener('click',()=>{
+  const pieces=[...board.children];
+  const correct=pieces.every((p,i)=>parseInt(p.dataset.correct)===i);
+  if(correct){
+    stopTimer();
+    alert(`🎉 Correct! Puzzle completed in ${timerEl.textContent} with ${moves} moves.`);
+  } else alert("Not yet solved. Keep trying!");
+});
+
+document.getElementById('reset').addEventListener('click',()=>{
+  board.innerHTML='';
+  stopTimer();
+  timerEl.textContent='00:00';
+  movesEl.textContent='0';
+  moves=0; imgInput.value='';
+});
+
+function startTimer(){
+  if(timerInterval) clearInterval(timerInterval);
+  startTime=new Date();
+  timerInterval=setInterval(()=>{
+    const elapsed=Math.floor((new Date()-startTime)/1000);
+    const m=String(Math.floor(elapsed/60)).padStart(2,'0');
+    const s=String(elapsed%60).padStart(2,'0');
+    timerEl.textContent=`${m}:${s}`;
+  },1000);
+}
+function stopTimer(){
+  if(timerInterval){clearInterval(timerInterval); timerInterval=null;}
+}
+</script>
+</body>
+</html>

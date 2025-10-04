@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Q5 — Data Dictionary Tool (Table Glossary + Relation Diagram)</title>
+<style>
+  :root {
+    --accent: #0b6efd;
+    --muted: #666;
+    --bg: #f6f8fb;
+    --card: #fff;
+  }
+  body{font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin:0; background:var(--bg); color:#111}
+  header{background:linear-gradient(90deg,#0b6efd,#4facfe); color:#fff; padding:18px 20px; text-align:center}
+  main{max-width:1150px; margin:20px auto; padding:12px}
+  .grid{display:grid; grid-template-columns: 1fr 420px; gap:16px}
+  .card{background:var(--card); padding:14px; border-radius:10px; box-shadow:0 6px 18px rgba(13,38,66,.06)}
+  label{display:block; font-weight:600; margin-bottom:6px}
+  textarea{width:100%; min-height:220px; font-family:monospace; font-size:13px; padding:10px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box}
+  .row{display:flex; gap:8px; flex-wrap:wrap}
+  input[type=file]{display:block}
+  button{background:var(--accent); color:#fff; border:0; padding:8px 12px; border-radius:8px; cursor:pointer}
+  button.secondary{background:#eef3ff; color:var(--accent); border:1px solid #d7e6ff}
+  small{color:var(--muted)}
+  .hint{font-size:13px; color:var(--muted); margin-top:6px}
+  .controls{display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap}
+  .diagramWrap{height:700px; overflow:auto; background:linear-gradient(#fff,#fbfdff); border-radius:10px; padding:10px}
+  svg{width:100%; height:100%}
+  .legend{display:flex; gap:10px; margin-top:8px; align-items:center}
+  .legend span{display:inline-block; width:12px;height:12px; border-radius:3px}
+  .glossary{margin-top:14px; display:grid; gap:12px}
+  .tableBox{border:1px solid #e4e9f2; border-radius:8px; overflow:hidden}
+  .tbHeader{background:#f3f7ff; padding:8px 10px; font-weight:700; color:var(--accent)}
+  .colList{padding:8px}
+  .colItem{display:flex; justify-content:space-between; padding:6px 6px; border-bottom:1px dashed #eef2fb; font-size:13px}
+  .colItem:last-child{border-bottom:0}
+  .meta{font-size:12px; color:var(--muted)}
+  .actions{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap}
+  .instructions{font-size:14px; line-height:1.45; color:#123}
+  footer{font-size:13px; color:var(--muted); text-align:center; margin:20px}
+  @media (max-width:1000px){ .grid{grid-template-columns:1fr; } .diagramWrap{height:420px} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Q5 — Data Dictionary Tool</h1>
+  <div style="font-size:14px; opacity:.95; margin-top:6px">Generate a table–table relation diagram and a printable HTML/PDF data dictionary from schema input (JSON/XML).</div>
+</header>
+
+<main>
+  <div class="grid">
+    <!-- LEFT: Input & Controls -->
+    <section class="card" aria-labelledby="inputTitle">
+      <h2 id="inputTitle">Input — Schema (JSON)</h2>
+
+      <div class="controls">
+        <button id="loadSample">Load Sample JSON</button>
+        <label class="secondary" style="display:inline-block">
+          <input type="file" id="fileInput" accept=".json,.xml" style="display:inline-block">
+          <small style="margin-left:8px; display:inline-block">Upload JSON/XML</small>
+        </label>
+        <button id="parseBtn">Parse & Generate</button>
+        <button id="clearBtn" class="secondary">Clear</button>
+      </div>
+
+      <label for="schemaText">Paste JSON schema here (or load sample / upload JSON)</label>
+      <textarea id="schemaText" placeholder='{
+  "tables": [
+    {
+      "name": "users",
+      "description": "Application users",
+      "columns": [
+        {"name":"id","type":"INT","pk":true,"nullable":false,"desc":"Primary key"},
+        {"name":"name","type":"VARCHAR(100)","pk":false,"nullable":false,"desc":"User name"},
+        {"name":"email","type":"VARCHAR(200)","pk":false,"nullable":false,"desc":"User email"}
+      ]
+    },
+    {
+      "name":"orders",
+      "description":"Purchase orders",
+      "columns":[
+        {"name":"id","type":"INT","pk":true,"nullable":false},
+        {"name":"user_id","type":"INT","pk":false,"nullable":false,"desc":"FK -> users.id"},
+        {"name":"amount","type":"DECIMAL(10,2)"}
+      ]
+    }
+  ],
+  "relationships":[
+    {"from":"orders.user_id","to":"users.id","type":"M:1"}
+  ]
+}'></textarea>
+
+      <div class="hint">Accepted formats:
+        <strong>JSON</strong> (preferred). XML accepted if it follows logical structure — upload and you'll be prompted.
+      </div>
+
+      <hr style="margin:12px 0">
+
+      <div class="instructions">
+        <h3 style="margin:6px 0">How to generate schema JSON from your DB</h3>
+        <ol>
+          <li>For MySQL/Postgres: run `pg_dump --schema-only` or `mysqldump --no-data` and extract `CREATE TABLE` statements.</li>
+          <li>Convert SQL DDL to JSON using simple scripts (example below). A sample SQL-&gt;JSON helper is described below.</li>
+          <li>JSON format expected: <code>{ "tables":[{ "name": "...","description":"...","columns":[{ "name","type","pk", "nullable","desc"}]},...],"relationships":[{"from":"table.col","to":"table.col","type":"1:1"}] }</code></li>
+        </ol>
+        <small><b>Tip:</b> The sample JSON loaded via <em>Load Sample JSON</em> shows exact format.</small>
+      </div>
+
+      <div style="margin-top:10px" class="actions">
+        <button id="exportHTML">Export Dictionary (HTML)</button>
+        <button id="openPrint">Open Printable (PDF via print)</button>
+        <button id="downloadJSON" class="secondary">Download JSON</button>
+      </div>
+    </section>
+
+    <!-- RIGHT: Diagram + Glossary -->
+    <aside>
+      <div class="card">
+        <h2>Relation Diagram</h2>
+        <div class="legend">
+          <div style="display:flex; gap:8px; align-items:center;">
+            <span style="width:16px;height:10px;background:#fff;border:1px solid #ddd;display:inline-block"></span>
+            <small>Table</small>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <span style="width:16px;height:10px;background:#0b6efd;display:inline-block"></span>
+            <small>Relationship</small>
+          </div>
+        </div>
+        <div class="diagramWrap" id="diagramWrap" aria-live="polite">
+          <!-- SVG will be injected here -->
+          <svg id="diagramSVG" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+
+        <h3 style="margin-top:12px">Glossary (Data Dictionary)</h3>
+        <div id="glossary" class="glossary"></div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Hidden sample JSON for quick injection -->
+  <template id="sampleJSON">
+{
+  "tables": [
+    {
+      "name": "users",
+      "description": "Application users",
+      "columns": [
+        {"name":"id","type":"INT","pk":true,"nullable":false,"desc":"Primary key"},
+        {"name":"name","type":"VARCHAR(100)","pk":false,"nullable":false,"desc":"User name"},
+        {"name":"email","type":"VARCHAR(200)","pk":false,"nullable":false,"desc":"User email"}
+      ]
+    },
+    {
+      "name":"orders",
+      "description":"Purchase orders",
+      "columns":[
+        {"name":"id","type":"INT","pk":true,"nullable":false,"desc":"Primary key"},
+        {"name":"user_id","type":"INT","pk":false,"nullable":false,"desc":"FK -> users.id"},
+        {"name":"amount","type":"DECIMAL(10,2)","pk":false,"nullable":false,"desc":"Order amount"}
+      ]
+    },
+    {
+      "name":"products",
+      "description":"Items for sale",
+      "columns":[
+        {"name":"id","type":"INT","pk":true,"nullable":false},
+        {"name":"sku","type":"VARCHAR(50)"},
+        {"name":"name","type":"VARCHAR(200)"}
+      ]
+    },
+    {
+      "name":"order_items",
+      "description":"Line items for each order",
+      "columns":[
+        {"name":"id","type":"INT","pk":true,"nullable":false},
+        {"name":"order_id","type":"INT","pk":false,"nullable":false,"desc":"FK -> orders.id"},
+        {"name":"product_id","type":"INT","pk":false,"nullable":false,"desc":"FK -> products.id"},
+        {"name":"qty","type":"INT","pk":false,"nullable":false}
+      ]
+    }
+  ],
+  "relationships":[
+    {"from":"orders.user_id","to":"users.id","type":"M:1"},
+    {"from":"order_items.order_id","to":"orders.id","type":"M:1"},
+    {"from":"order_items.product_id","to":"products.id","type":"M:1"}
+  ]
+}
+</template>
+
+</main>
+
+<footer>
+  <small>Instructions: paste or upload JSON, then click <strong>Parse &amp; Generate</strong>. You can export the dictionary as HTML or open a printable PDF version. See README for SQL-&gt;JSON helper ideas.</small>
+</footer>
+
+<script>
+/*
+  Q5 — Data Dictionary Tool
+  - Parses JSON schema and draws SVG diagram + glossary.
+  - Exports printable HTML (user can hit Print -> Save as PDF).
+  - No external libraries used.
+*/
+
+/* ---------- Helpers ---------- */
+
+// Safe JSON parse with error handling
+function safeParseJSON(text){
+  try{
+    return JSON.parse(text);
+  }catch(e){
+    return null;
+  }
+}
+
+// Download utility
+function download(filename, content, mime='text/plain'){
+  const a = document.createElement('a');
+  const blob = new Blob([content], {type: mime});
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+}
+
+/* ---------- UI elements ---------- */
+const schemaText = document.getElementById('schemaText');
+const parseBtn = document.getElementById('parseBtn');
+const clearBtn = document.getElementById('clearBtn');
+const loadSample = document.getElementById('loadSample');
+const fileInput = document.getElementById('fileInput');
+const diagramSVG = document.getElementById('diagramSVG');
+const glossary = document.getElementById('glossary');
+const exportHTMLBtn = document.getElementById('exportHTML');
+const openPrintBtn = document.getElementById('openPrint');
+const downloadJSONBtn = document.getElementById('downloadJSON');
+
+/* ---------- File upload (JSON or XML) ---------- */
+fileInput.addEventListener('change', (ev)=>{
+  const f = ev.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const txt = reader.result;
+    // try parse as JSON
+    const parsed = safeParseJSON(txt);
+    if(parsed){
+      schemaText.value = JSON.stringify(parsed, null, 2);
+    } else {
+      // attempt rudimentary XML->JSON conversion for simple schema
+      try {
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(txt, "application/xml");
+        // convert simple structures: tables/table/columns/column & relationships/rel
+        const tables = Array.from(xml.querySelectorAll('table')).map(t=>{
+          const name = t.getAttribute('name') || t.querySelector('name')?.textContent || 'table';
+          const desc = t.querySelector('description')?.textContent || '';
+          const columns = Array.from(t.querySelectorAll('column')).map(c=>{
+            return {
+              name: c.getAttribute('name') || c.querySelector('name')?.textContent || '',
+              type: c.getAttribute('type') || c.querySelector('type')?.textContent || '',
+              pk: (c.getAttribute('pk') === 'true') || (c.querySelector('pk')?.textContent==='true'),
+              nullable: (c.getAttribute('nullable') === 'true') || (c.querySelector('nullable')?.textContent==='true'),
+              desc: c.querySelector('desc')?.textContent || ''
+            };
+          });
+          return { name, description: desc, columns };
+        });
+
+        const relationships = Array.from(xml.querySelectorAll('relationship,rel')).map(r=>{
+          return {
+            from: r.getAttribute('from') || r.querySelector('from')?.textContent,
+            to: r.getAttribute('to') || r.querySelector('to')?.textContent,
+            type: r.getAttribute('type') || r.querySelector('type')?.textContent || ''
+          };
+        });
+
+        const obj = { tables, relationships };
+        schemaText.value = JSON.stringify(obj, null, 2);
+      } catch(err){
+        alert('Uploaded file is neither valid JSON nor a recognized XML schema.');
+      }
+    }
+  };
+  reader.readAsText(f);
+});
+
+/* ---------- Load sample ---------- */
+loadSample.addEventListener('click', ()=>{
+  const tmpl = document.getElementById('sampleJSON').innerText.trim();
+  schemaText.value = tmpl;
+});
+
+/* ---------- Clear ---------- */
+clearBtn.addEventListener('click', ()=>{ schemaText.value=''; diagramSVG.innerHTML=''; glossary.innerHTML=''; });
+
+/* ---------- Parse & Generate ---------- */
+parseBtn.addEventListener('click', ()=>{
+  const text = schemaText.value.trim();
+  if(!text){ alert('Paste JSON schema or load a sample first.'); return; }
+  const schema = safeParseJSON(text);
+  if(!schema){
+    alert('Invalid JSON. Please correct syntax or upload XML that follows the expected structure.');
+    return;
+  }
+  generateDictionaryAndDiagram(schema);
+  // save current JSON for download convenience
+  downloadJSONBtn.onclick = ()=> download('schema.json', JSON.stringify(schema, null, 2), 'application/json');
+});
+
+/* ---------- Main generation function ---------- */
+function generateDictionaryAndDiagram(schema){
+  // Validate basic shape
+  if(!Array.isArray(schema.tables) || !Array.isArray(schema.relationships)){
+    alert('Schema JSON must have "tables" (array) and "relationships" (array).');
+    return;
+  }
+
+  // Build map tableName -> descriptor
+  const tables = schema.tables.map(t => ({
+    name: t.name,
+    description: t.description || '',
+    columns: Array.isArray(t.columns) ? t.columns : []
+  }));
+
+  const tableMap = new Map(tables.map(t => [t.name, t]));
+
+  // Prepare glossary HTML
+  glossary.innerHTML = '';
+  tables.forEach(t => {
+    const box = document.createElement('div'); box.className = 'tableBox';
+    const header = document.createElement('div'); header.className='tbHeader'; header.textContent = t.name + (t.description ? ' — ' + t.description : '');
+    const colList = document.createElement('div'); colList.className='colList';
+    if(t.columns.length===0){
+      const p = document.createElement('div'); p.className='colItem'; p.textContent='(no columns)'; colList.appendChild(p);
+    } else {
+      t.columns.forEach(col=>{
+        const item = document.createElement('div'); item.className='colItem';
+        const left = document.createElement('div'); left.innerHTML = `<strong>${col.name}</strong> <span class="meta">(${col.type||'?'})</span>`;
+        const right = document.createElement('div'); right.innerHTML = `${col.pk ? '<span style="color:var(--accent);font-weight:700">PK</span>' : ''} ${col.nullable?'<span class="meta">NULL</span>':'<span class="meta">NOT NULL</span>'}`;
+        const desc = document.createElement('div'); desc.className='meta'; desc.style.width='100%'; desc.style.marginTop='6px'; desc.textContent = col.desc || '';
+        item.appendChild(left); item.appendChild(right); colList.appendChild(item); if(col.desc) colList.appendChild(desc);
+      });
+    }
+    box.appendChild(header); box.appendChild(colList);
+    glossary.appendChild(box);
+  });
+
+  // Draw diagram (SVG)
+  drawDiagram(svg=diagramSVG, tables, schema.relationships, tableMap);
+}
+
+/* ---------- Diagram drawing: place boxes then connect ---------- */
+function drawDiagram(svg, tables, relationships, tableMap){
+  // Clear svg
+  svg.innerHTML='';
+
+  // Calculate layout positions — simple grid positioning
+  const cols = Math.ceil(Math.sqrt(tables.length));
+  const rows = Math.ceil(tables.length/cols);
+  const padX = 40, padY = 20;
+  const boxW = 220, boxH = 120;
+  const spacingX = 40, spacingY = 30;
+  const width = Math.max(document.getElementById('diagramWrap').clientWidth - 20, (boxW+spacingX)*cols + padX*2);
+  const height = Math.max( (boxH+spacingY)*rows + padY*2, 600 );
+
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+  // positions map
+  const positions = new Map();
+  tables.forEach((t, idx) => {
+    const col = idx % cols;
+    const row = Math.floor(idx / cols);
+    const x = padX + col*(boxW+spacingX);
+    const y = padY + row*(boxH+spacingY);
+    positions.set(t.name, {x,y,w:boxW,h:boxH});
+    // draw table rectangle
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    // background rect
+    const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x', x); rect.setAttribute('y', y); rect.setAttribute('width', boxW); rect.setAttribute('height', boxH);
+    rect.setAttribute('rx', 8); rect.setAttribute('ry', 8);
+    rect.setAttribute('fill', '#ffffff'); rect.setAttribute('stroke','#dfe7ff'); rect.setAttribute('stroke-width','1');
+    // title text
+    const title = document.createElementNS('http://www.w3.org/2000/svg','text');
+    title.setAttribute('x', x+10); title.setAttribute('y', y+20); title.setAttribute('fill','#0b6efd'); title.setAttribute('font-size','14');
+    title.setAttribute('font-weight','700'); title.textContent = t.name;
+    // small desc
+    if(t.description){
+      const desc = document.createElementNS('http://www.w3.org/2000/svg','text');
+      desc.setAttribute('x', x+10); desc.setAttribute('y', y+38); desc.setAttribute('fill','#666'); desc.setAttribute('font-size','11');
+      desc.textContent = t.description.length>36 ? t.description.slice(0,36)+'...' : t.description;
+      g.appendChild(desc);
+    }
+    // add column names as small text inside
+    const colBaseY = y + 56;
+    (t.columns || []).slice(0,5).forEach((c, ci) => {
+      const ct = document.createElementNS('http://www.w3.org/2000/svg','text');
+      ct.setAttribute('x', x+10); ct.setAttribute('y', colBaseY + ci*14); ct.setAttribute('fill','#222'); ct.setAttribute('font-size','12');
+      const label = (c.pk ? '🔑 ' : '') + c.name + (c.type ? ' : ' + c.type : '');
+      ct.textContent = label.length>36 ? label.slice(0,36)+'...' : label;
+      g.appendChild(ct);
+    });
+
+    // attach rect and title
+    g.appendChild(rect); g.appendChild(title);
+
+    // allow clicking table to highlight (scroll glossary to element)
+    g.style.cursor = 'pointer';
+    g.addEventListener('click', ()=>{
+      const el = Array.from(document.querySelectorAll('.tableBox')).find(tb => tb.querySelector('.tbHeader').textContent.startsWith(t.name));
+      if(el){
+        el.scrollIntoView({behavior:'smooth', block:'center'});
+        el.style.outline='3px solid rgba(11,110,253,0.12)';
+        setTimeout(()=>el.style.outline='0', 1800);
+      }
+    });
+
+    svg.appendChild(g);
+  });
+
+  // draw relationships as lines/arrows
+  relationships.forEach(rel=>{
+    const fromParts = rel.from.split('.');
+    const toParts = rel.to.split('.');
+    const fromTable = fromParts[0], toTable = toParts[0];
+    if(!positions.has(fromTable) || !positions.has(toTable)) return;
+    const a = positions.get(fromTable), b = positions.get(toTable);
+    // compute start and end points: center of right/left edges depending on relative positions
+    const startX = a.x + a.w/2;
+    const startY = a.y + a.h/2;
+    const endX = b.x + b.w/2;
+    const endY = b.y + b.h/2;
+
+    // Bezier curve path for nicer look
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    const dx = Math.abs(endX - startX);
+    const controlOffset = Math.max(80, dx/2);
+    const d = `M ${startX} ${startY} C ${startX+controlOffset} ${startY} ${endX-controlOffset} ${endY} ${endX} ${endY}`;
+    path.setAttribute('d', d);
+    path.setAttribute('stroke','#0b6efd');
+    path.setAttribute('stroke-width','2');
+    path.setAttribute('fill','none');
+    path.setAttribute('marker-end','url(#arrow)');
+    svg.appendChild(path);
+
+    // label showing FK column -> PK column and relation type
+    const midX = (startX+endX)/2, midY=(startY+endY)/2;
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('x', midX + 6); lbl.setAttribute('y', midY - 6);
+    lbl.setAttribute('font-size','12'); lbl.setAttribute('fill','#0b6efd');
+    lbl.textContent = (rel.type ? '['+rel.type+'] ' : '') + rel.from + ' → ' + rel.to;
+    svg.appendChild(lbl);
+  });
+
+  // Add arrow marker defs
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  defs.innerHTML = `
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0b6efd" />
+    </marker>
+  `;
+  svg.insertBefore(defs, svg.firstChild);
+}
+
+/* ---------- Export HTML & Print ---------- */
+exportHTMLBtn.addEventListener('click', ()=>{
+  // Build a printable HTML snapshot of the glossary and diagram SVG
+  const schemaTextVal = schemaText.value || '';
+  if(!schemaTextVal){ alert('Please provide schema first (Parse & Generate).'); return; }
+
+  // Prepare printable HTML
+  const printableHTML = buildPrintableHTML();
+  download('data_dictionary.html', printableHTML, 'text/html');
+});
+
+// open printable page in new window and call print (user can save as PDF)
+openPrintBtn.addEventListener('click', ()=>{
+  const printableHTML = buildPrintableHTML();
+  const w = window.open('', '_blank');
+  w.document.open();
+  w.document.write(printableHTML);
+  w.document.close();
+  // slight delay to allow images/SVG to render, then call print
+  setTimeout(()=> w.print(), 700);
+});
+
+// Build printable HTML string from current content
+function buildPrintableHTML(){
+  // clone glossary html and svg
+  const glossaryHTML = glossary.innerHTML;
+  const svgHTML = diagramSVG.outerHTML;
+  const title = 'Data Dictionary & Relation Diagram';
+  const css = `
+    body{font-family:Arial,Helvetica,sans-serif; padding:20px; color:#123}
+    h1{color:#0b6efd}
+    .tableBox{border:1px solid #ddd; border-radius:6px; margin-bottom:10px}
+    .tbHeader{background:#f3f7ff; padding:8px; font-weight:700}
+    .colList{padding:8px}
+    .diagramWrap{border:1px solid #ddd; padding:10px; margin-bottom:14px}
+  `;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>${css}</style></head><body>
+    <h1>${title}</h1>
+    <h3>Generated on ${new Date().toLocaleString()}</h3>
+    <div class="diagramWrap">${svgHTML}</div>
+    <h2>Glossary</h2>
+    ${glossaryHTML}
+  </body></html>`;
+}
+
+/* ---------- Optional: auto sample load on first visit ---------- */
+(function init(){
+  // If schema is empty, load sample for convenience
+  if(!schemaText.value.trim()){
+    schemaText.value = document.getElementById('sampleJSON').innerText.trim();
+  }
+})();
+
+</script>
+</body>
+</html>
