@@ -196,5 +196,36 @@ function stopTimer(){
   if(timerInterval){clearInterval(timerInterval); timerInterval=null;}
 }
 </script>
+
+<script>
+function getTimestamp() {
+  return new Date().toLocaleString();
+}
+
+function identifyElement(target) {
+  const tag = target.tagName.toLowerCase();
+  if (tag === "button") return "button";
+  if (tag === "select") return "drop_down";
+  if (tag === "img") return "image";
+  if (tag === "input") return "text_input";
+  if (target.classList.contains('piece')) return "puzzle_piece";
+  return tag;
+}
+
+function logEvent(eventType, target) {
+  const timestamp = getTimestamp();
+  const elementType = identifyElement(target);
+  const message = `Timestamp: ${timestamp} | Event: ${eventType} | Object: ${elementType}`;
+  console.log(message);
+}
+
+document.addEventListener("click", (e) => {
+  logEvent("click", e.target);
+});
+
+window.addEventListener("load", () => {
+  logEvent("view", document.body);
+});
+</script>
 </body>
 </html>
