@@ -1,0 +1,821 @@
+<!doctype html>
+<html lang="en" >
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Detection of Computer-Generated Text</title>
+<meta name="description" content="Eleven classifiers — classical, character-level neural, and transformer — raced on the same 25,572 tweets to answer a question that got much louder the year after: can you tell whether a machine wrote this?">
+<style>
+:root{
+  --bg:#fbfaf7; --bg-alt:#f3f1ea; --ink:#16181d; --ink-soft:#4a505c; --ink-faint:#767d8c;
+  --rule:#ddd9cd; --rule-soft:#e9e5db;
+  --accent:#7a4a1e; --accent-soft:#f0e4d4; --accent-ink:#5c3514;
+  --code-bg:#f5f2eb; --code-ink:#2d2a24;
+  --ok:#2f6b47; --warn:#8a5a10; --flag:#8d3030;
+  --max:min(1180px,100%);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131519; --bg-alt:#1a1d23; --ink:#e7e5e0; --ink-soft:#b2b6bf; --ink-faint:#858b97;
+    --rule:#2c3038; --rule-soft:#23262c;
+    --accent:#d9a86a; --accent-soft:#2a221a; --accent-ink:#e8c396;
+    --code-bg:#1c1f25; --code-ink:#dcd9d2;
+    --ok:#6fbf8e; --warn:#d6a44a; --flag:#e07b7b;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131519; --bg-alt:#1a1d23; --ink:#e7e5e0; --ink-soft:#b2b6bf; --ink-faint:#858b97;
+  --rule:#2c3038; --rule-soft:#23262c;
+  --accent:#d9a86a; --accent-soft:#2a221a; --accent-ink:#e8c396;
+  --code-bg:#1c1f25; --code-ink:#dcd9d2;
+  --ok:#6fbf8e; --warn:#d6a44a; --flag:#e07b7b;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:1.5rem}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:16.5px/1.68 "Iowan Old Style","Charter","Georgia","Source Serif 4",serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--max); margin:0 auto; padding:0 16px}
+.shell{display:grid; grid-template-columns:250px minmax(0,1fr); gap:46px; align-items:start}
+@media (max-width:900px){ .shell{grid-template-columns:1fr; gap:0} }
+
+/* ---------- masthead ---------- */
+header.mast{border-bottom:1px solid var(--rule); background:var(--bg-alt)}
+header.mast .wrap{padding-top:34px; padding-bottom:30px}
+.kicker{
+  font:600 11.5px/1 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:14px;
+}
+h1{font-size:clamp(27px,4.3vw,42px); line-height:1.14; margin:0 0 14px; font-weight:600; letter-spacing:-.015em}
+.standfirst{font-size:18px; color:var(--ink-soft); margin:0; max-width:62ch}
+.meta{
+  display:flex; flex-wrap:wrap; gap:8px 22px; margin-top:22px;
+  font:13px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink-faint);
+}
+.meta b{color:var(--ink-soft); font-weight:600}
+.meta a{color:var(--accent); text-decoration:none; border-bottom:1px solid var(--accent-soft)}
+.meta a:hover{border-bottom-color:var(--accent)}
+
+/* ---------- nav ---------- */
+nav.toc{
+  position:sticky; top:20px; padding:30px 0 40px;
+  font:13.5px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+nav.toc .lbl{font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:12px; font-weight:600}
+nav.toc ol{list-style:none; margin:0; padding:0; counter-reset:toc}
+nav.toc li{counter-increment:toc; margin:0 0 2px}
+nav.toc a{
+  display:block; padding:5px 10px 5px 30px; color:var(--ink-soft); text-decoration:none;
+  border-left:2px solid transparent; border-radius:0 4px 4px 0; position:relative;
+}
+nav.toc a::before{
+  content:counter(toc); position:absolute; left:8px; color:var(--ink-faint);
+  font-variant-numeric:tabular-nums; font-size:11.5px; top:6px;
+}
+nav.toc a:hover{background:var(--bg-alt); color:var(--ink)}
+@media (max-width:900px){
+  nav.toc{position:static; padding:24px 0 8px; border-bottom:1px solid var(--rule-soft)}
+  nav.toc ol{columns:2; column-gap:20px}
+}
+
+/* ---------- body ---------- */
+main{padding:34px 0 90px; min-width:0}
+section{margin:0 0 56px; scroll-margin-top:20px}
+h2{
+  font-size:clamp(21px,2.8vw,27px); font-weight:600; letter-spacing:-.01em;
+  margin:0 0 6px; padding-bottom:10px; border-bottom:1px solid var(--rule);
+}
+h2 .num{color:var(--accent); font-variant-numeric:tabular-nums; margin-right:12px; font-size:.78em; font-weight:600}
+h3{font-size:18.5px; font-weight:600; margin:34px 0 8px; color:var(--ink)}
+h4{font-size:15.5px; font-weight:600; margin:24px 0 6px; color:var(--ink-soft);
+   font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.005em}
+p{margin:0 0 15px; max-width:74ch}
+ul,ol{margin:0 0 15px; padding-left:24px; max-width:74ch}
+li{margin:0 0 7px}
+li > ul, li > ol{margin-top:7px}
+strong{font-weight:600}
+em{font-style:italic}
+a{color:var(--accent)}
+hr{border:0; border-top:1px solid var(--rule-soft); margin:34px 0}
+.lede{font-size:17.5px; color:var(--ink-soft); max-width:70ch}
+
+/* ---------- code ---------- */
+code{
+  font:0.875em/1.5 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  background:var(--code-bg); color:var(--code-ink); padding:.13em .38em; border-radius:3px;
+  border:1px solid var(--rule-soft); word-break:break-word;
+}
+pre{
+  background:var(--code-bg); border:1px solid var(--rule-soft); border-radius:7px;
+  padding:15px 17px; overflow-x:auto; margin:0 0 18px;
+  font:13px/1.62 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  color:var(--code-ink);
+}
+pre code{background:none; border:0; padding:0; font-size:inherit; word-break:normal}
+pre.tree{font-size:12.3px; line-height:1.55}
+.filename{
+  font:600 11.5px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:var(--ink-faint); margin:0 0 6px; letter-spacing:.02em;
+}
+.filename::before{content:"▸ "; color:var(--accent)}
+
+/* ---------- callouts ---------- */
+.note{
+  border-left:3px solid var(--accent); background:var(--accent-soft);
+  padding:14px 18px; margin:0 0 20px; border-radius:0 6px 6px 0; max-width:76ch;
+}
+.note p:last-child{margin-bottom:0}
+.note .tag{
+  display:block; font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent-ink); margin-bottom:8px;
+}
+.note.flag{border-left-color:var(--flag)} .note.flag .tag{color:var(--flag)}
+.note.ok{border-left-color:var(--ok)} .note.ok .tag{color:var(--ok)}
+.note.warn{border-left-color:var(--warn)} .note.warn .tag{color:var(--warn)}
+.note.plain{background:var(--bg-alt); border-left-color:var(--rule)}
+.note.plain .tag{color:var(--ink-faint)}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto; margin:0 0 20px; -webkit-overflow-scrolling:touch}
+table{
+  border-collapse:collapse; width:100%; min-width:430px;
+  font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+caption{
+  caption-side:top; text-align:left; font-size:12.5px; color:var(--ink-faint);
+  padding:0 0 8px; font-family:ui-sans-serif,system-ui,sans-serif;
+}
+th,td{padding:8px 13px; text-align:left; border-bottom:1px solid var(--rule-soft); vertical-align:top}
+th{
+  font-weight:600; font-size:12px; letter-spacing:.055em; text-transform:uppercase;
+  color:var(--ink-faint); border-bottom:1px solid var(--rule); white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:1px solid var(--rule)}
+td.num,th.num{text-align:right; font-variant-numeric:tabular-nums}
+tbody tr:hover{background:var(--bg-alt)}
+td code{font-size:.84em}
+
+/* ---------- misc ---------- */
+.deck{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); margin:0 0 22px}
+.card{border:1px solid var(--rule-soft); border-radius:8px; padding:14px 16px; background:var(--bg-alt)}
+.card .k{
+  font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-faint); margin-bottom:7px;
+}
+.card .v{font-size:21px; font-weight:600; letter-spacing:-.01em; font-variant-numeric:tabular-nums}
+.card .d{font-size:13px; color:var(--ink-soft); margin-top:5px; line-height:1.45;
+         font-family:ui-sans-serif,system-ui,sans-serif}
+figure{margin:0 0 22px}
+figure svg{display:block; width:100%; height:auto; max-width:100%}
+figcaption{font-size:13px; color:var(--ink-faint); margin-top:9px; max-width:70ch;
+           font-family:ui-sans-serif,system-ui,sans-serif; line-height:1.5}
+.eq{
+  background:var(--bg-alt); border:1px solid var(--rule-soft); border-radius:7px;
+  padding:4px 18px; margin:0 0 18px; overflow-x:auto;
+}
+.pill{
+  display:inline-block; font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.07em;
+  text-transform:uppercase; padding:4px 9px; border-radius:20px;
+  background:var(--accent-soft); color:var(--accent-ink); margin:0 6px 6px 0;
+}
+.srconly{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+footer.foot{
+  border-top:1px solid var(--rule); background:var(--bg-alt); padding:24px 0 40px;
+  font:13.5px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink-faint);
+}
+footer.foot .wrap{max-width:var(--max)}
+footer.foot p{max-width:76ch; margin:0 0 9px}
+.themer{
+  position:fixed; right:14px; bottom:14px; z-index:50;
+  border:1px solid var(--rule); background:var(--bg-alt); color:var(--ink-soft);
+  border-radius:20px; padding:7px 14px; cursor:pointer;
+  font:600 12px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.04em;
+}
+.themer:hover{color:var(--ink); border-color:var(--accent)}
+@media print{ .themer,nav.toc{display:none} .shell{grid-template-columns:1fr} body{background:#fff;color:#000} }
+mjx-container{overflow-x:auto; overflow-y:hidden; max-width:100%}
+mjx-container[display="true"]{margin:.7em 0 !important}
+
+/* ---------- set navigation ---------- */
+.setbar{border-bottom:1px solid var(--rule-soft); background:var(--bg)}
+.setbar .wrap{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding-top:11px; padding-bottom:11px;
+  font:13px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.setbar a{color:var(--ink-soft); text-decoration:none}
+.setbar a:hover{color:var(--accent)}
+.setbar .home{font-weight:600; color:var(--ink-soft); white-space:nowrap}
+.setbar .home span{color:var(--accent)}
+.setbar .pos{color:var(--ink-faint); font-variant-numeric:tabular-nums; white-space:nowrap}
+.setbar .jump{display:flex; gap:14px; align-items:center; min-width:0}
+.setbar .jump a{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+@media (max-width:700px){ .setbar .jump .lbl2{display:none} }
+
+nav.toc .sibs{margin-top:26px; padding-top:18px; border-top:1px solid var(--rule-soft)}
+nav.toc .sibs ul{list-style:none; margin:0; padding:0}
+nav.toc .sibs li{margin:0 0 1px; counter-increment:none}
+nav.toc .sibs a{
+  display:block; padding:5px 10px 5px 30px; color:var(--ink-faint); text-decoration:none;
+  border-left:2px solid transparent; border-radius:0 4px 4px 0; position:relative; font-size:13px;
+}
+nav.toc .sibs a .n{position:absolute; left:8px; font-variant-numeric:tabular-nums; font-size:11.5px}
+nav.toc .sibs a:hover{background:var(--bg-alt); color:var(--ink)}
+nav.toc .sibs a[aria-current="page"]{
+  color:var(--ink); font-weight:600; border-left-color:var(--accent); background:var(--accent-soft);
+}
+
+.pager{
+  display:grid; gap:14px; grid-template-columns:1fr 1fr; margin:10px 0 0;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (max-width:620px){ .pager{grid-template-columns:1fr} }
+.pager a{
+  display:block; border:1px solid var(--rule-soft); border-radius:8px; padding:14px 16px;
+  text-decoration:none; background:var(--bg-alt); color:var(--ink);
+}
+.pager a:hover{border-color:var(--accent)}
+.pager .dir{
+  display:block; font:600 10.5px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:7px;
+}
+.pager .t{display:block; font-size:14.5px; font-weight:600; line-height:1.35}
+.pager .next{text-align:right}
+.pager .spacer{border:1px dashed var(--rule-soft); border-radius:8px; opacity:.35}
+
+/* ---------- index page ---------- */
+.indexwrap{max-width:900px; margin:0 auto; padding:0 16px}
+main.index{padding:36px 0 80px}
+.projlist{display:flex; flex-direction:column; gap:16px; margin:0 0 44px}
+.proj{
+  display:block; border:1px solid var(--rule-soft); border-radius:10px; padding:20px 22px;
+  text-decoration:none; color:var(--ink); background:var(--bg-alt); position:relative;
+}
+.proj:hover{border-color:var(--accent)}
+.proj .pnum{
+  font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.14em; color:var(--accent);
+  display:block; margin-bottom:9px;
+}
+.proj h3{margin:0 0 8px; font-size:20px; font-weight:600; letter-spacing:-.01em; line-height:1.25}
+.proj p{margin:0 0 12px; color:var(--ink-soft); font-size:15.5px; max-width:68ch}
+.proj .tags{display:flex; flex-wrap:wrap; gap:6px 8px; font-family:ui-sans-serif,system-ui,sans-serif}
+.proj .tag2{
+  font-size:11.5px; letter-spacing:.03em; color:var(--ink-faint);
+  border:1px solid var(--rule-soft); border-radius:20px; padding:3px 10px; background:var(--bg);
+}
+.proj .when{
+  position:absolute; top:20px; right:22px; font:12px/1 ui-sans-serif,system-ui,sans-serif;
+  color:var(--ink-faint); font-variant-numeric:tabular-nums;
+}
+@media (max-width:620px){ .proj .when{position:static; display:block; margin-bottom:9px} }
+</style>
+
+<script>
+window.MathJax={
+  tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']],processEscapes:true},
+  options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']},
+  chtml:{scale:0.98}
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
+
+</head>
+<body>
+<div class="setbar">
+  <div class="wrap">
+    <a class="home" href="index.html">&#8962; <span>Anupam Dwivedi — Project Portfolio</span></a>
+    <div class="jump"><a href="04-spectral-soil-modeler.html" rel="prev">&larr; <span class="lbl2">Spectral Soil Modeler</span></a><a href="06-hate-speech-and-counter-speech.html" rel="next"><span class="lbl2">Hate &amp;amp; Counter Speech</span> &rarr;</a></div>
+    <span class="pos">5 / 6</span>
+  </div>
+</div>
+
+<header class="mast">
+  <div class="wrap">
+    <div class="kicker">Project 05 &nbsp;·&nbsp; NLP &amp; Deep Learning</div>
+    <h1>Detection of Computer-Generated Text</h1>
+    <p class="standfirst">Eleven classifiers — classical, character-level neural, and transformer — raced on the same 25,572 tweets to answer a question that got much louder the year after: can you tell whether a machine wrote this?</p>
+    <div class="meta">
+        <span><b>Period</b> Mar – May 2023</span>
+        <span><b>Repository</b> <a href="https://github.com/a-n-u-p-a-m/Detection-of-Computer-Generated-Text">Detection-of-Computer-Generated-Text</a></span>
+        <span><b>Stack</b> PyTorch · TensorFlow / Keras · scikit-learn · HuggingFace</span>
+        <span><b>Dataset</b> TweepFake — 17 human + 23 bot accounts</span>
+        <span><b>Type</b> Group project (4) · B.Tech 6th-semester mini-project</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="shell">
+    <nav class="toc" aria-label="Contents">
+      <div class="lbl">Contents</div>
+      <ol>
+        <li><a href="#context">A question asked at the right moment</a></li>
+        <li><a href="#dataset">TweepFake, and why this dataset is hard</a></li>
+        <li><a href="#preprocessing">Preprocessing, and the leakage it closes</a></li>
+        <li><a href="#models">Eleven classifiers across four tiers</a></li>
+        <li><a href="#design">What the experimental design gets right</a></li>
+        <li><a href="#significance">Why this matters now</a></li>
+        <li><a href="#limits">Limits</a></li>
+        <li><a href="#repro">Code and reproduction</a></li>
+      </ol>
+      <div class="sibs">
+        <div class="lbl">The other projects</div>
+        <ul>
+          <li><a href="01-tgn-mechanistic-interpretability.html"><span class="n">01</span>Reverse-Engineering a TGN</a></li>
+          <li><a href="02-cross-language-brain-alignment.html"><span class="n">02</span>Cross-Language Brain Alignment</a></li>
+          <li><a href="03-algorithmic-collusion-audit-mechanism.html"><span class="n">03</span>Algorithmic Collusion Audits</a></li>
+          <li><a href="04-spectral-soil-modeler.html"><span class="n">04</span>Spectral Soil Modeler</a></li>
+          <li><a href="05-detection-of-computer-generated-text.html" aria-current="page"><span class="n">05</span>Detecting Machine Text</a></li>
+          <li><a href="06-hate-speech-and-counter-speech.html"><span class="n">06</span>Hate &amp; Counter Speech</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main>
+<section>
+<h2 id="context"><span class="num">01</span>A question asked at the right moment</h2>
+
+<p class="lede">This project ran from March to May 2023 — roughly four months after ChatGPT's public release, and well before AI-text detection became an industry. The question it asks has since become a live problem in education, publishing, platform moderation and hiring.</p>
+
+<p>The framing in the project's own problem statement is worth quoting for its priorities: machine-generated text is easy to produce at scale, and the resulting harms are misinformation, fake news, and content presented as authored that is not. Those are the concerns that actually materialised, and they were named here before the detection market existed.</p>
+
+<p>The literature review covers twelve papers, several of which were weeks old at the time: Guo et&nbsp;al.'s HC3 corpus comparing ChatGPT to human experts (arXiv, January 2023), Mitchell et&nbsp;al.'s DetectGPT using probability curvature for zero-shot detection (arXiv, January 2023), Ippolito et&nbsp;al. on automatic detection being easiest precisely when humans are fooled, and Mahdipour Saravani et&nbsp;al. on the TweepFake dataset this project builds on. The survey is not decorative — the design choices below trace directly to it.</p>
+
+<div class="note plain">
+<span class="tag">Where the code lives</span>
+<p>The GitHub repository contains a README only. The notebooks, dataset splits, saved models and the project report are in the linked Google Drive folder, which the README documents file by file. Everything in this document — architectures, hyperparameters, preprocessing, per-class metrics — comes from <code>MINI_PROJECT_REPORT.pdf</code>, <code>DL_MODELS.py</code>, <code>DataHandler.py</code> and the notebooks in that folder, read directly.</p>
+</div>
+</section>
+
+
+<section>
+<h2 id="dataset"><span class="num">02</span>TweepFake, and why this dataset is hard</h2>
+
+<div class="deck">
+<div class="card"><div class="k">Accounts</div><div class="v">40</div><div class="d">17 human, 23 bot</div></div>
+<div class="card"><div class="k">Training</div><div class="v">20,712</div><div class="d">10,354 bot / 10,358 human</div></div>
+<div class="card"><div class="k">Validation</div><div class="v">2,302</div><div class="d">1,150 bot / 1,152 human</div></div>
+<div class="card"><div class="k">Test</div><div class="v">2,558</div><div class="d">1,280 bot / 1,278 human</div></div>
+</div>
+
+<p>The split is 90/10 train/test with 10% of the training set held out for validation, and the classes are balanced to within four samples at every level — so accuracy is a meaningful headline metric here, which is not true of most detection datasets.</p>
+
+<h3>Three generators, not one</h3>
+
+<p>The bot tweets come from three distinct generation families, and this is the design feature that makes TweepFake harder — and more useful — than a single-generator corpus:</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Generator</th><th class="num">Accounts</th><th class="num">Tweets</th><th>Character of the output</th></tr></thead>
+<tbody>
+<tr><td>GPT-2</td><td class="num">11</td><td class="num">3,861</td><td>fluent, coherent, hardest to catch</td></tr>
+<tr><td>RNN</td><td class="num">7</td><td class="num">4,181</td><td>locally plausible, globally incoherent</td></tr>
+<tr><td>Other (Markov chain, Torch RNN)</td><td class="num">5</td><td class="num">4,876</td><td>statistically shallow, most distinguishable</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>A detector trained on one generator learns that generator's artefacts. A detector trained across three has to find something more general — and the per-generator breakdown becomes a diagnostic in its own right. The project's finding: <strong>RNN-generated tweets are the most reliably identified; GPT-2 tweets are the hardest and therefore the most dangerous for disinformation</strong>. That ranking tracks model quality directly, and it extrapolates uncomfortably: as generators improve, this task gets harder in a way no amount of detector training fixes.</p>
+
+<p>The dataset's <code>class_type</code> column records the generator per tweet, and it is carried through the whole pipeline into the exported prediction CSVs — so per-generator error analysis is possible after the fact without re-running anything. Keeping a metadata column that the model never sees, purely so the <em>analysis</em> can stratify on it, is a small decision that pays for itself.</p>
+
+<h3>The hardest possible length regime</h3>
+
+<p>Tweets. At most 280 characters, often far fewer. Statistical detection methods — perplexity, burstiness, token-rank distributions — all depend on having enough tokens to estimate a distribution. On a 15-word tweet, there is almost nothing to estimate.</p>
+
+<p>The project quantified this directly, which is the most transferable result it produced. Running existing fine-tuned detectors on progressively truncated text, it found that prediction confidence degrades with length and that misclassification begins at identifiable thresholds:</p>
+
+<div class="tablewrap">
+<table>
+<caption>Length at which pre-existing detectors begin to misclassify</caption>
+<thead><tr><th>Model variant</th><th class="num">Misclassification onset</th></tr></thead>
+<tbody>
+<tr><td>Single-text version</td><td class="num">~189 words</td></tr>
+<tr><td>QA version</td><td class="num">~85 words</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The report's conclusion is that 90–100 words is a practical floor for reliable detection with these methods — and an average tweet is a fraction of that. It also observes that the QA version, which sees the prompt alongside the answer, is both more confident and more robust than the single-text version. That is intuitive and worth stating as a principle: <strong>the question constrains what a plausible human answer looks like</strong>, so conditioning on it supplies additional signal per token. Detection is easier when you know what the text was responding to.</p>
+
+<div class="note">
+<span class="tag">Why this result aged well</span>
+<p>Every consumer-facing AI-text detector that followed has the same failure mode, and it is structural rather than a defect of any implementation.</p>
+<p>The argument is information-theoretic. Detection rests on a distributional difference between human and machine text — machine text occupies a narrower, higher-likelihood region of token space. Distinguishing two distributions from a sample requires enough samples for the empirical estimate to separate them, and the error of any such estimate falls as \(1/\sqrt{n}\) in the number of tokens. At \(n \approx 20\), the confidence interval on any per-token statistic is wide enough to overlap both classes almost regardless of the underlying gap.</p>
+<p>No training regime manufactures signal that is not in the input. Students, journalists and moderators now encounter this constantly as false positives on short passages; this project measured the threshold and named it in 2023.</p>
+</div>
+
+<p>The report flags one instructive outlier: the single-text model misclassified a 189-word passage, which it attributes to a human's unspecified elaboration of the phrase "certain problems" — a vagueness a machine would not typically produce. The failure is on the <em>human</em> side, not the machine side: a human writing in an unusually machine-like register. That is the irreducible error mode, and it is the one that produces real-world harm when a detector is used to make accusations.</p>
+</section>
+
+
+<section>
+<h2 id="preprocessing"><span class="num">03</span>Preprocessing, and the leakage it closes</h2>
+
+<p>The classical-ML path does not feed raw tweets to a vectoriser. It runs a tweet-specific normalisation first, and the details are more consequential than they look.</p>
+
+<pre><code>tweet_tokenizer = TweetTokenizer()
+tokenized = tweet_tokenizer.tokenize(text)
+tokenized = [t.lower() for t in tokenized]
+tokenized = [t for t in tokenized if not t.startswith("#")]      # drop hashtags
+for t in tokenized:
+    if t.startswith("@"):
+        tokenized_mod.append("__user_mention__" if len(t) > 1
+                             else "__invalid_user_mention__")     # anonymise
+    else:
+        tokenized_mod.append(t)
+allText = re.sub(r'http\S+', '__url__', " ".join(tokenized_mod)) # anonymise URLs</code></pre>
+
+<h3>Why NLTK's TweetTokenizer rather than a standard one</h3>
+
+<p>A general-purpose tokeniser destroys exactly the features that distinguish social-media text. It splits <code>:-)</code> into three tokens, breaks <code>@user</code> at the <code>@</code>, shreds a URL at every punctuation mark, and mangles <code>#hashtag</code>. <code>TweetTokenizer</code> is built for this register: it keeps emoticons intact as single tokens, preserves handles and hashtags, and optionally reduces character elongation (<code>sooooo</code> → <code>soo</code>). Since the hypothesis is that bots and humans differ in surface habits, preserving those habits through tokenisation is a precondition for detecting them.</p>
+
+<h3>The three normalisations, and what each one prevents</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Step</th><th>What it prevents</th></tr></thead>
+<tbody>
+<tr><td><strong>Lowercasing</strong></td><td>splits the vocabulary budget across case variants of the same word, and capitalisation in tweets is noisy enough to be more sparsity than signal</td></tr>
+<tr><td><strong>Dropping hashtags</strong></td><td>hashtags are strongly <em>topical</em> and strongly account-specific. A bot account about cryptocurrency and a human account about politics are separable by hashtag alone — which would be a topic classifier wearing a detector's clothes</td></tr>
+<tr><td><strong>Anonymising @mentions</strong></td><td><strong>the account-identity leak.</strong> Mention graphs are near-unique per account: if a particular handle appears only in tweets from one bot, the model can memorise the handle instead of learning anything about generated text</td></tr>
+<tr><td><strong>Anonymising URLs</strong></td><td>same leak through a different channel — shortener domains and campaign-tagged links identify the source account directly</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The two anonymisations replace content with <em>placeholder tokens</em> rather than deleting it, which is the better choice: <code>__user_mention__</code> preserves the <em>structural</em> fact that a mention occurred and how many there were — plausibly a real behavioural difference between bots and humans — while discarding the identity that would leak. Deleting them entirely would throw away the signal with the leak.</p>
+
+<div class="note ok">
+<span class="tag">This changes how the account-leakage concern should be read</span>
+<p>The obvious criticism of TweepFake is that tweets from the same account appear in both train and test, so a model could learn account style rather than machine-generation artefacts.</p>
+<p>The criticism is not fully answered — writing style beyond handles and links is still account-correlated — but it is <strong>substantially mitigated</strong> by design, and deliberately so. The two highest-bandwidth identity channels (mention graph, link targets) are anonymised before the vectoriser ever sees them, and topical hashtags are removed.</p>
+<p>The project also <em>measured</em> the residual. <code>plotErrorRatio()</code> groups test errors by <code>screen_name</code>, computes a per-account error ratio against that account's sample count, and filters to accounts with at least 30 samples. If the model were memorising accounts, error ratios would be bimodal — near zero for seen accounts, high for the rest. Looking at that distribution is the right diagnostic, and it is in the notebook rather than in the report.</p>
+</div>
+</section>
+
+
+<section>
+<h2 id="models"><span class="num">04</span>Eleven classifiers across four tiers</h2>
+
+<p>The experimental design is a clean ablation across representation and architecture. Three machine-learning classifiers, run twice with different text representations; three deep models on raw characters; two transformers.</p>
+
+<h3>Tier 1 — classical ML on TF-IDF</h3>
+
+<p>TF-IDF weights each term by how often it appears in a document against how rarely it appears across the corpus:</p>
+
+<div class="eq">
+\[
+\text{tfidf}(t,d) = \underbrace{f_{t,d}}_{\text{term frequency}} \times \underbrace{\log\frac{N}{|\{d' : t \in d'\}|}}_{\text{inverse document frequency}}
+\]
+</div>
+
+<p>The IDF factor is the informative half: a term appearing in every document carries \(\log(N/N) = 0\) weight, while a rare term is up-weighted. The logarithm is what keeps the weighting sane — without it, a term appearing in one document out of 20,000 would get 20,000× the weight of a term in every document, and the representation would be dominated by hapax legomena.</p>
+
+<p>This is a bag of words: all order information is discarded. A detector built on it can only learn <em>vocabulary</em> differences between humans and bots.</p>
+
+<pre><code>vect = TfidfVectorizer(ngram_range=(1, 1), max_features=25000, dtype=np.float32)</code></pre>
+
+<p>Three choices in one line:</p>
+
+<ul>
+<li><strong><code>ngram_range=(1,1)</code></strong> — unigrams only. Adding bigrams would capture some local order and would also multiply the feature space several-fold while making it far sparser; on 20k short documents, most bigrams would appear once or twice and contribute nothing but variance. The deep models in Tier 3 are where order gets modelled.</li>
+<li><strong><code>max_features=25000</code></strong> — keep the 25,000 highest-frequency terms. An uncapped vocabulary over 20k tweets runs to tens of thousands of terms, most of them typos and one-off strings. The cap is both a memory bound and a regulariser: a term appearing once cannot generalise, and including it only gives the model something to overfit.</li>
+<li><strong><code>dtype=np.float32</code></strong> — halves memory over the float64 default at no meaningful precision cost for TF-IDF values, which are bounded and low-precision by nature.</li>
+</ul>
+
+<div class="tablewrap">
+<table>
+<caption>Tier 1 — TF-IDF representation, test set (n = 2,558)</caption>
+<thead><tr><th>Model</th><th>Selected hyperparameters</th><th class="num">Accuracy</th><th class="num">P (human)</th><th class="num">R (human)</th><th class="num">F1 (human)</th><th class="num">F1 (bot)</th></tr></thead>
+<tbody>
+<tr><td>Logistic Regression</td><td><code>C=1</code></td><td class="num">83.6%</td><td class="num">0.842</td><td class="num">0.748</td><td class="num">0.792</td><td class="num">0.815</td></tr>
+<tr><td>SVM</td><td><code>C=1</code>, linear</td><td class="num">81.2%</td><td class="num">0.852</td><td class="num">0.754</td><td class="num">0.800</td><td class="num">0.822</td></tr>
+<tr><td>Random Forest</td><td><code>depth=30, leaf=2, split=15, n=100</code></td><td class="num">77.8%</td><td class="num">0.771</td><td class="num">0.790</td><td class="num">0.780</td><td class="num">0.775</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>A recurring pattern across every model in this study: <strong>precision on the human class is high and recall is low</strong> (SVM: 0.852 vs 0.754). The models are conservative about calling something human — when they do, they are usually right, but they miss many genuine humans and mislabel them as bots. For a deployed detector that is the expensive direction of error: a false accusation of machine authorship is more damaging than a missed bot.</p>
+
+<p>The three models are a deliberate spread rather than three similar things. Logistic regression is linear with a probabilistic output; SVM is linear-margin with a hinge loss and no calibrated probability; random forest is non-linear and axis-aligned. If all three agreed, the signal would be robustly linear; the fact that RF trails by 5.8 points on TF-IDF says the signal <em>is</em> close to linear in this representation, since axis-aligned splits on sparse high-dimensional counts are a poor fit.</p>
+
+<h4>Model selection: PredefinedSplit, not k-fold</h4>
+
+<pre><code>ps = PredefinedSplit(test_fold=[-1] * n_train + [0] * n_val)
+clf = GridSearchCV(model, tuned_parameters, cv=ps)
+all_features = sparse.vstack([train_features, valid_features])
+clf.fit(all_features, y_train + y_val)</code></pre>
+
+<div class="note">
+<span class="tag">Design decision: honour the dataset's own split</span>
+<p><code>PredefinedSplit</code> with <code>test_fold = [-1]*n_train + [0]*n_val</code> means: index <code>-1</code> never appears in validation (always train), index <code>0</code> is validation fold zero. So the grid search evaluates every configuration on <strong>one fixed, canonical validation set</strong> rather than re-partitioning the data.</p>
+<p><strong>Why not 5-fold CV?</strong> Two reasons, and both are specific to this dataset. First, TweepFake <em>ships</em> canonical train/validation/test splits; re-partitioning discards the dataset authors' design and makes results non-comparable to every other paper using it. Second — and more important — k-fold would shuffle tweets <em>from the same account</em> across folds, so a model could be validated on an account it had just trained on. The very leakage §3's preprocessing works to close would be reintroduced by the model-selection procedure.</p>
+<p><strong>What it costs:</strong> a single validation split gives a noisier estimate than averaging over five folds, so the selected hyperparameters are less reliably optimal. With 2,302 validation samples that noise is modest, and the alternative trades a known bias for a smaller variance — the wrong direction.</p>
+<p><code>sparse.vstack</code> keeps the combined matrix sparse. Densifying 23,014 documents × 25,000 features as float32 would be 2.3 GB for a matrix that is well over 99% zeros.</p>
+</div>
+
+<p>The grids themselves: SVC over <code>{rbf} × gamma{1e-3,1e-4} × C{1,10,100,1000}</code> plus <code>{linear} × C{1}</code> = 9 configurations; logistic regression over 13 values of \(C\) spanning \(2^{-6}\) to \(2^{6}\) — geometric spacing, which is correct for a scale parameter where the meaningful steps are multiplicative; random forest over 3×3×4×3 = 108 configurations. The RF grid is twelve times larger than the SVM's and the model still finishes last, which is its own small lesson about where search effort pays.</p>
+
+<p>One cosmetic note for careful readers: the report lists the selected SVM configuration as <code>C=1, gamma=0.001, kernel=linear</code>. The linear branch of the grid has no <code>gamma</code> — scikit-learn's <code>SVC</code> carries a <code>gamma</code> attribute regardless of kernel, and it is simply unused for a linear one. Reporting it is harmless but meaningless.</p>
+
+<h3>Tier 2 — the same classifiers on BERT embeddings</h3>
+
+<p>Identical classifiers, identical hyperparameters, one change: replace TF-IDF with pre-trained BERT embeddings. This is a controlled experiment isolating the <em>representation</em>.</p>
+
+<p>The two representations differ in kind, not just quality. TF-IDF is <strong>sparse, high-dimensional and non-contextual</strong>: 25,000 mostly-zero dimensions, and the word "bank" has one representation regardless of context. BERT embeddings are <strong>dense, lower-dimensional and contextual</strong>: 768 dimensions, all non-zero, and "bank" in a river sentence and a finance sentence receive different vectors because each token's representation is a function of the whole sequence through self-attention.</p>
+
+<div class="tablewrap">
+<table>
+<caption>Tier 2 — BERT embeddings, same classifiers</caption>
+<thead><tr><th>Model</th><th class="num">TF-IDF</th><th class="num">BERT</th><th class="num">Δ</th><th class="num">F1 (human)</th><th class="num">F1 (bot)</th></tr></thead>
+<tbody>
+<tr><td>SVM</td><td class="num">81.2%</td><td class="num"><strong>84.2%</strong></td><td class="num">+3.0</td><td class="num">0.838</td><td class="num">0.846</td></tr>
+<tr><td>Logistic Regression</td><td class="num">83.6%</td><td class="num">83.6%</td><td class="num">0.0</td><td class="num">0.833</td><td class="num">0.838</td></tr>
+<tr><td>Random Forest</td><td class="num">77.8%</td><td class="num"><strong>83.0%</strong></td><td class="num">+5.2</td><td class="num">0.821</td><td class="num">0.838</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Every model improves or holds, Random Forest most of all — and the ordering of the gains is itself informative. <strong>Random Forest gains most because it is the model least able to compensate for a weak representation.</strong> Axis-aligned splits on sparse TF-IDF counts are a poor fit: each split tests one word's presence, so capturing a conjunction of lexical evidence takes a deep tree. Dense embedding dimensions, where each coordinate is a continuous semantic feature, are exactly what trees partition well. The linear models were already extracting most of what TF-IDF contains — a linear function of word counts is close to the best available on a bag of words — so they gain less.</p>
+
+<p>The ranking SVM &gt; LR &gt; RF is stable across both representations, which is a useful sign: it indicates the ordering reflects model–task fit rather than a representation artefact.</p>
+
+<h3>Tier 3 — character-level deep models</h3>
+
+<p>The deep models operate on <em>characters</em>, not words. Sequences are lowercased, tokenised at character level with an <code>UNK</code> token, and padded to 320 characters.</p>
+
+<div class="note plain">
+<span class="tag">Design decision: character-level, and why it suits this task specifically</span>
+<p><strong>What word-level loses on social media:</strong> an out-of-vocabulary word is a single <code>UNK</code> token, and tweets are full of them — misspellings, elongations (<code>sooooo</code>), hashtag compounds, @handles, URLs, emoji, creative punctuation. A word vocabulary either explodes or discards most of this.</p>
+<p><strong>What character-level buys:</strong> no OOV problem at all — the alphabet is ~100 symbols and covers everything. And the discriminative signal in generated text is often <em>sub-word</em>: an RNN character generator produces near-words that are almost right, a Markov chain produces locally-plausible letter sequences, and both are visible at character level and invisible after word tokenisation maps them all to <code>UNK</code>.</p>
+<p><strong>What it costs:</strong> sequences are ~5× longer than word sequences, so the recurrent models are correspondingly slower, and the model must learn morphology from scratch rather than receiving word boundaries for free.</p>
+<p><strong>The alternative not taken:</strong> subword tokenisation (BPE, WordPiece) is the modern middle ground — bounded vocabulary, no OOV, shorter sequences than characters. It is what the Tier 4 transformers use. Running Tier 3 at character level and Tier 4 at subword level means the two tiers differ in tokenisation as well as architecture, which is a mild confound in the comparison between them.</p>
+</div>
+
+<h4>CharCNN</h4>
+
+<pre><code>input  = Input(shape=(320,))
+x      = Embedding(vocabSize+1, 32)(input)          # 32-dim char embeddings
+
+x3 = GlobalMaxPooling1D()(Conv1D(128, 3, activation="tanh")(x))   # 3-grams
+x4 = GlobalMaxPooling1D()(Conv1D(128, 4, activation="tanh")(x))   # 4-grams
+x5 = GlobalMaxPooling1D()(Conv1D(128, 5, activation="tanh")(x))   # 5-grams
+
+conc = Dropout(0.2)(concatenate([x3, x4, x5]))   # 384 features
+finalOut = Dense(1, activation="sigmoid")(conc)</code></pre>
+
+<p>Three ideas are doing the work here.</p>
+
+<p><strong>A 1-D convolution is a learned n-gram detector.</strong> A filter of width 3 slides over the sequence, computing a weighted sum of three consecutive character embeddings at every position. Each of the 128 filters per branch learns to fire on a particular character pattern — the learned equivalent of a character trigram feature, but continuous and composable rather than a discrete lookup.</p>
+
+<p><strong>Three widths in parallel</strong> detect patterns at three scales simultaneously, then concatenate. A 3-gram catches a short suffix pattern, a 5-gram catches a short word or a punctuation cluster. Running them in parallel rather than stacking them keeps all three scales directly available to the classifier rather than forcing the longer patterns to be composed from the shorter ones.</p>
+
+<p><strong><code>GlobalMaxPooling1D</code> makes the architecture position-invariant.</strong> It takes the strongest activation of each filter <em>anywhere</em> in the sequence, so the model learns "does this telltale pattern occur at all" rather than "does it occur at position 47." For tweets, where a distinguishing feature might appear at the start or the end, that is the correct inductive bias — and it is what collapses a variable-length sequence into a fixed 384-dimensional vector without any padding artefacts surviving.</p>
+
+<p>The <code>tanh</code> activation rather than ReLU is a mild surprise — ReLU is the modern default — and follows the original Character-CNN work. With max-pooling immediately after, the practical difference is small: both preserve the ordering of strong activations.</p>
+
+<h4>CharGRU</h4>
+
+<pre><code>x   = Embedding(vocabSize+1, 32)(input)
+gru = Bidirectional(GRU(512, activation="tanh"))(x)
+finalOut = Dense(1, activation="sigmoid")(Dropout(0.2)(gru))</code></pre>
+
+<p>Where the CNN detects <em>local</em> patterns at fixed widths, the GRU models <em>sequential</em> structure across the whole 320-character sequence, with a hidden state that can in principle carry information arbitrarily far. <strong>Bidirectionality</strong> matters because this is classification, not generation: the whole text is available at inference, so there is no reason to restrict the model to left context. Two GRUs run in opposite directions and their final states are concatenated, giving every position both its prefix and its suffix.</p>
+
+<h4>CharCNN + CharGRU</h4>
+
+<p>Both branches over the same embedding, concatenated into one 1,408-dimensional feature vector (3×128 convolutional + 2×512 bidirectional GRU) before the classifier — local n-gram evidence and global sequential evidence combined.</p>
+
+<div class="tablewrap">
+<table>
+<caption>Tier 3 — deep models, with cost</caption>
+<thead><tr><th>Model</th><th class="num">Accuracy</th><th class="num">Trainable params</th><th class="num">Training time</th><th class="num">F1 (human)</th><th class="num">F1 (bot)</th></tr></thead>
+<tbody>
+<tr><td>CharCNN</td><td class="num">84.4%</td><td class="num">53,345</td><td class="num">73.3 s</td><td class="num">0.836</td><td class="num">0.851</td></tr>
+<tr><td>CharGRU</td><td class="num">83.5%</td><td class="num">1,681,761</td><td class="num">693.6 s</td><td class="num">0.826</td><td class="num">0.843</td></tr>
+<tr><td>CharCNN + GRU</td><td class="num"><strong>84.8%</strong></td><td class="num">1,731,681</td><td class="num">746.2 s</td><td class="num">0.842</td><td class="num">0.853</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note ok">
+<span class="tag">The efficiency finding</span>
+<p>CharCNN+GRU is the most accurate of the three, by 0.4 points over CharCNN alone. It also uses <strong>32× more parameters</strong> and <strong>10× more training time</strong>.</p>
+<p>The project's conclusion names CharCNN the best model overall on that basis — second-best accuracy at a small fraction of the cost. Reaching for the Pareto frontier rather than the top of a single column is the right instinct, and it is the correct call here: 0.4 accuracy points on 2,558 test samples is about <strong>10 tweets</strong>, comfortably inside the noise band of a single train/test split.</p>
+<p>The deeper reading is that the GRU branch contributes almost nothing on this data. Adding 1.68M parameters of sequential modelling buys 0.4 points over convolutions alone, which suggests the discriminative signal in a 320-character tweet is overwhelmingly <em>local</em> — character n-grams, punctuation habits, token-level artefacts — rather than long-range sequential structure. Tweets are too short for long-range dependencies to carry much, and the CNN's position-invariant pooling already captures what is there.</p>
+<p>Note also where the parameters live: the GRU's 1.68M is almost entirely the recurrent weight matrices (\(3 \times (32{+}512)\times 512\) per direction, doubled for bidirectionality), while the CNN's 53K is three small filter banks. The accuracy-per-parameter gap is roughly 30:1 in the CNN's favour.</p>
+</div>
+
+<h3>Tier 4 — transformers</h3>
+
+<p>BERT and RoBERTa, fine-tuned end to end. The architectural difference from Tier 3 is self-attention: every token attends to every other token in one layer, so the path length between any two positions is \(O(1)\) rather than \(O(n)\) through a recurrence. The practical difference is <strong>pretraining</strong> — both models arrive having seen billions of tokens of text, so fine-tuning adapts an existing language representation rather than learning one from 20,712 tweets.</p>
+
+<div class="tablewrap">
+<table>
+<caption>Tier 4 — fine-tuned transformers</caption>
+<thead><tr><th>Model</th><th class="num">Accuracy</th><th class="num">AUROC</th><th class="num">AUPRC</th><th class="num">F1</th><th class="num">Eval loss</th><th class="num">Training time</th></tr></thead>
+<tbody>
+<tr><td>BERT</td><td class="num"><strong>89.5%</strong></td><td class="num">0.964</td><td class="num">0.963</td><td class="num">0.896</td><td class="num">0.560</td><td class="num">1,624.6 s</td></tr>
+<tr><td>RoBERTa</td><td class="num">89.2%</td><td class="num"><strong>0.967</strong></td><td class="num"><strong>0.968</strong></td><td class="num">0.889</td><td class="num"><strong>0.481</strong></td><td class="num">1,781.3 s</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Transformers add roughly <strong>5 points over the best deep model</strong> and 6–8 over classical ML. The metric disagreement between them is worth reading rather than rounding away.</p>
+
+<p>BERT wins on accuracy and F1, both computed at a fixed 0.5 threshold. RoBERTa wins on AUROC, AUPRC and evaluation loss, all of which are threshold-independent. <strong>AUROC is the probability that a randomly chosen positive is ranked above a randomly chosen negative</strong> — a property of the ordering alone — and evaluation loss measures calibration. So the pattern means RoBERTa's probability estimates are <em>better ranked and better calibrated</em>, while BERT happens to sit better against the default cutoff.</p>
+
+<p>If the deployment threshold were tuned — which it should be for any detector where false-accusation cost differs from missed-detection cost — RoBERTa would likely be the better model. The report's conclusion that BERT is "marginally better" is accurate for the default operating point, and the lower eval loss is the signal pointing the other way.</p>
+
+<p>AUROC of 0.964–0.967 is strong on short, balanced, multi-generator text. The near-equality of AUROC and AUPRC is a direct consequence of class balance — on a skewed set they diverge sharply, because AUPRC's baseline is the positive rate while AUROC's is always 0.5.</p>
+
+<div class="note plain">
+<span class="tag">Design decision: Keras for Tier 3, PyTorch/HF for Tier 4</span>
+<p>The character models are Keras functional-API; the transformers are PyTorch via Hugging Face. Mixing frameworks in one project is usually a smell, and here it is defensible.</p>
+<p>The Keras functional API expresses the CharCNN's three-parallel-branch topology in about ten readable lines, and for a fixed architecture trained once there is no need for anything more flexible. The transformer path, by contrast, is entirely determined by the Hugging Face ecosystem — the pretrained weights, the tokenisers and the <code>Trainer</code> loop are PyTorch-native, and reimplementing that in Keras to achieve framework uniformity would be effort spent on consistency rather than results.</p>
+<p>The cost is a heavier environment and two sets of conventions. In a notebook-per-tier structure, where each notebook is self-contained, that cost is mostly contained.</p>
+</div>
+
+<h3>The full picture</h3>
+
+<div class="tablewrap">
+<table>
+<caption>All eleven classifiers, ranked</caption>
+<thead><tr><th>Tier</th><th>Model</th><th>Representation</th><th class="num">Accuracy</th></tr></thead>
+<tbody>
+<tr><td>Transformer</td><td>BERT</td><td>fine-tuned end to end</td><td class="num">89.5%</td></tr>
+<tr><td>Transformer</td><td>RoBERTa</td><td>fine-tuned end to end</td><td class="num">89.2%</td></tr>
+<tr><td>Deep</td><td>CharCNN + GRU</td><td>character, learned</td><td class="num">84.8%</td></tr>
+<tr><td>Deep</td><td>CharCNN</td><td>character, learned</td><td class="num">84.4%</td></tr>
+<tr><td>ML</td><td>SVM</td><td>BERT embeddings</td><td class="num">84.2%</td></tr>
+<tr><td>ML</td><td>Logistic Regression</td><td>TF-IDF <em>or</em> BERT</td><td class="num">83.6%</td></tr>
+<tr><td>Deep</td><td>CharGRU</td><td>character, learned</td><td class="num">83.5%</td></tr>
+<tr><td>ML</td><td>Random Forest</td><td>BERT embeddings</td><td class="num">83.0%</td></tr>
+<tr><td>ML</td><td>SVM</td><td>TF-IDF</td><td class="num">81.2%</td></tr>
+<tr><td>ML</td><td>Random Forest</td><td>TF-IDF</td><td class="num">77.8%</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The ordering is clean and the spread is 11.7 points from worst to best. The report notes the results are comparable to the state of the art reported for TweepFake at the time, with the non-transformer approaches landing at or slightly above the published non-transformer baselines.</p>
+
+<p>An ensemble over all eleven — six ML variants, three deep models, two transformers — was also evaluated. Ensembling across such a wide performance spread is usually a wash: the weak members drag an unweighted average, and members that err on the <em>same</em> hard examples do not decorrelate. Since every model here fails on the same thing — short tweets with little signal — the errors are strongly correlated and there is little diversity for an ensemble to exploit.</p>
+</section>
+
+
+<section>
+<h2 id="design"><span class="num">05</span>What the experimental design gets right</h2>
+
+<p>Eleven models is not interesting by itself. The structure of the comparison is.</p>
+
+<h3>Representation is varied independently of architecture</h3>
+
+<p>Tier 1 and Tier 2 run the <em>same three classifiers with the same hyperparameters</em> on two different representations. That isolates the contribution of contextual embeddings cleanly — +3.0 for SVM, +5.2 for Random Forest, 0.0 for Logistic Regression — and those three numbers say something no single-model result could: <strong>the benefit of a better representation depends on how badly the model needed one.</strong></p>
+
+<h3>Cost is reported alongside accuracy</h3>
+
+<p>Training time and parameter counts appear in the results tables, not in an appendix. That is what makes the CharCNN conclusion possible, and why the comparison supports a <em>decision</em> rather than just a ranking. A 32× parameter increase for 0.4 accuracy points is information the accuracy column alone cannot convey.</p>
+
+<h3>Per-class metrics, not just accuracy</h3>
+
+<p>Every model is reported with precision, recall, F1 and support for both classes — a consequence of using <code>classification_report(..., digits=3)</code> rather than a single score. This exposes the systematic precision–recall asymmetry on the human class that runs through every model in the study, the sort of pattern a single accuracy figure hides entirely, and which matters most for how the detector would behave in use.</p>
+
+<h3>Leakage addressed in preprocessing and measured afterwards</h3>
+
+<p>The @mention and URL anonymisation (§3) closes the two highest-bandwidth identity channels before the vectoriser sees them, and <code>plotErrorRatio()</code> measures what remains by grouping test errors per account. Both the mitigation and the measurement are design choices, not accidents.</p>
+
+<h3>Failure analysis as a first-class experiment</h3>
+
+<p>The length-degradation study is not a robustness footnote; it is the part of the project with the longest shelf life. Rather than reporting that detection is hard on short text, it measured <em>where</em> it breaks (189 words / 85 words), explained <em>why</em> the QA variant is more robust, and examined the specific outlier that broke the pattern.</p>
+
+<h3>Per-generator breakdown</h3>
+
+<p>Reporting that RNN-generated text is easiest and GPT-2-generated text is hardest converts a static benchmark into a forecast. The ordering tracks generator quality, and the implication — that the task gets harder as generators improve — has been borne out continuously since.</p>
+
+<h3>Reproducibility hygiene</h3>
+
+<p>A fixed seed (<code>random_state = 523</code>) threads through the random forest and every stochastic operation, and the notebooks are numbered in execution order with each tier self-contained. Small things, and the difference between a result someone else can reproduce and a number in a report.</p>
+</section>
+
+
+<section>
+<h2 id="significance"><span class="num">06</span>Why this matters now</h2>
+
+<h3>The stakes have changed</h3>
+
+<p>Since 2023, AI-text detection has become consequential in ways this project anticipated:</p>
+
+<ul>
+<li><strong>Academic integrity.</strong> Detectors are used in disciplinary proceedings. The false-positive rate on short submissions — precisely the regime this project measured — is the central controversy, and the documented bias against non-native English writers is a direct consequence of the same statistical weakness: text with simpler, more predictable structure looks machine-like under every distributional detector.</li>
+<li><strong>Platform integrity.</strong> Coordinated inauthentic behaviour at scale, on exactly the short-form text this dataset consists of.</li>
+<li><strong>Training-data contamination.</strong> As generated text saturates the web, distinguishing it becomes a prerequisite for assembling clean training corpora at all.</li>
+<li><strong>Provenance regulation.</strong> The EU AI Act's transparency obligations assume generated content can be identified. Where that assumption fails, the obligation is unenforceable — and watermarking exists largely because post-hoc detection is unreliable.</li>
+</ul>
+
+<h3>The three findings that transferred</h3>
+
+<ol>
+<li><strong>Short text defeats statistical detection.</strong> Measured here at 85–189 words depending on available context. Structural, not an implementation flaw, and the reason every consumer detector carries the same caveat today.</li>
+<li><strong>Detection difficulty tracks generator quality.</strong> RNN easy, GPT-2 hard. The trajectory was predictable from the ordering in 2023 and has held since.</li>
+<li><strong>The error asymmetry is the wrong way round.</strong> High precision, low recall on the human class means systematic over-flagging of humans as machines — the damaging direction, and visible across every one of the eleven models.</li>
+</ol>
+
+<h3>What it demonstrates about the work</h3>
+
+<ul>
+<li><strong>Full-stack coverage.</strong> TF-IDF through fine-tuned transformers, with classical baselines actually run rather than cited — which is how the 11.7-point spread becomes measurable.</li>
+<li><strong>Controlled ablation.</strong> Representation varied independently of architecture.</li>
+<li><strong>Cost-aware conclusions.</strong> The Pareto reading rather than the leaderboard reading.</li>
+<li><strong>Domain-appropriate preprocessing.</strong> TweetTokenizer and targeted anonymisation, chosen for what this text actually looks like.</li>
+<li><strong>Leakage-aware model selection.</strong> PredefinedSplit over k-fold, for a reason specific to the dataset's structure.</li>
+<li><strong>Failure analysis.</strong> The most durable contribution came from investigating where the models break, not from the accuracy table.</li>
+</ul>
+</section>
+
+
+<section>
+<h2 id="limits"><span class="num">07</span>Limits</h2>
+
+<ul>
+<li><strong>One dataset, one domain.</strong> TweepFake is tweets. Generalisation to essays, news or code was not tested, and the length findings suggest performance on longer text would differ substantially — probably better.</li>
+<li><strong>Pre-ChatGPT generators.</strong> GPT-2, RNNs and Markov chains. Instruction-tuned models produce markedly more human-like text, and 89.5% on TweepFake should not be read as 89.5% on modern output. The project's own per-generator finding predicts the degradation.</li>
+<li><strong>Single train/test split.</strong> No repeated seeds, so the 0.4-point gap between CharCNN and CharCNN+GRU — about 10 tweets — cannot be distinguished from split variance. The report's decision not to lean on it is the right one.</li>
+<li><strong>Account-level correlation is mitigated, not eliminated.</strong> Handles, URLs and hashtags are normalised away, and per-account error ratios are plotted — but writing style beyond those channels remains account-correlated, and tweets from one account still appear in both train and test. Account-disjoint splitting would be the rigorous alternative and would likely lower every number in the tables.</li>
+<li><strong>Tokenisation differs across tiers.</strong> Characters in Tier 3, subwords in Tier 4 — a mild confound in the comparison between them.</li>
+<li><strong>Adversarial robustness untested.</strong> No evaluation against paraphrasing, deliberate perturbation, or text written to evade detection — the realistic threat model for anything deployed.</li>
+<li><strong>Ensemble not quantified.</strong> Reported as run, but without a headline number separable from the individual models.</li>
+</ul>
+</section>
+
+
+<section>
+<h2 id="repro"><span class="num">08</span>Code and reproduction</h2>
+
+<pre class="tree"><code>MINI_PROJECT/                      (Google Drive — linked from the README)
+├── data/
+│   └── splits/
+│       ├── train.csv              20,712 tweets   (semicolon-separated)
+│       ├── validation.csv          2,302
+│       ├── test.csv                2,558
+│       └── custom.csv             user-supplied tweets for inference
+├── DL_MODELS.py                   CharCNN, CharGRU, CharCNN+GRU definitions
+│                                  and the character tokenizer
+├── Datahandler.py                 CSV loading; PredefinedSplit grid search
+├── saved_models/                  trained ML, DL and transformer checkpoints
+│
+├── 1. MINI_PROJECT_ML.ipynb       LR / SVM / RF on TF-IDF
+├── 2. MINI_PROJECT_BERT_ML.ipynb  the same three on BERT embeddings
+├── 3. MINI_PROJECT_DL.ipynb       the three character-level models
+├── 4. Architecture.ipynb          architecture diagrams
+├── 5. MINI_PROJECT_BERT.ipynb     BERT fine-tuning
+├── 6. MINI_PROJECT_RobertA.ipynb  RoBERTa fine-tuning
+└── 7. MINI_PROJECT_COMPARISON.ipynb   all results, plotted together</code></pre>
+
+<p>To run on new text, the README documents adding rows to <code>custom.csv</code> and executing the corresponding notebook; predictions are written to <code>custom_predictions.&lt;model&gt;.csv</code>. The inference snippet thresholds the sigmoid output at 0.5 and maps indices back through the label dictionary:</p>
+
+<pre><code>y_pred_custom_prob = model.predict(custom_features)
+y_pred_custom = (y_pred_custom_prob > 0.5).astype(int)
+custom_prediction_labels = [dictLabelsReverse[t] for t in y_pred_custom]
+customTweetsDataset["prediction"] = custom_prediction_labels</code></pre>
+
+<p>The 0.5 threshold is the default, and — per §4 — is also the operating point at which BERT edges RoBERTa. Anyone deploying this would want to tune it against the relative cost of the two error types rather than accept it: given the precision–recall asymmetry on the human class, a threshold chosen to protect against false accusations would sit well away from 0.5.</p>
+
+<p>Model training and evaluation go through <code>DataHandler.testSKLearnModel()</code>, which fits the grid, prints the best parameters, prints every grid cell's mean and standard deviation, then prints a three-digit <code>classification_report</code> on the held-out test set. Printing the full grid rather than only the winner is a small thing that makes the search auditable — a winner one standard deviation from three others is a different situation from a clear optimum, and only the full table shows which you have.</p>
+</section>
+
+
+<nav class="pager" aria-label="Other documents in this set">
+<a class="prev" href="04-spectral-soil-modeler.html" rel="prev"><span class="dir">&larr; Previous</span><span class="t">Spectral Soil Modeler</span></a>
+<a class="next" href="06-hate-speech-and-counter-speech.html" rel="next"><span class="dir">Next &rarr;</span><span class="t">Implicit Hate-Speech Detection and Counter-Speech Generation</span></a>
+</nav>
+
+    </main>
+  </div>
+</div>
+
+<footer class="foot">
+  <div class="wrap">
+    <p><b>How this document was produced.</b> Written by reading the project's source code, reports and result files directly. Formulas, file paths, hyperparameters and numbers below were taken from the code as it stands, not from memory. Where the code and the written report disagree, both readings are shown and the disagreement is flagged rather than smoothed over.</p><p>The GitHub repository for this project holds only a README; the code, dataset splits and the full project report live in the linked Google Drive folder. All model architectures, hyperparameters, preprocessing and per-class metrics below come from the committed report (<code>MINI_PROJECT_REPORT.pdf</code>) and from <code>DL_MODELS.py</code>, <code>DataHandler.py</code> and the tier notebooks in that folder, all read directly.</p>
+  </div>
+</footer>
+
+<button class="themer" id="themer" type="button">Theme</button>
+<script>
+(function(){
+  var b=document.getElementById('themer'), r=document.documentElement;
+  var saved=null; try{saved=localStorage.getItem('doc-theme')}catch(e){}
+  if(saved){r.setAttribute('data-theme',saved)}
+  b.addEventListener('click',function(){
+    var cur=r.getAttribute('data-theme');
+    if(!cur){cur=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}
+    var next=cur==='dark'?'light':'dark';
+    r.setAttribute('data-theme',next);
+    try{localStorage.setItem('doc-theme',next)}catch(e){}
+  });
+})();
+</script>
+
+</body>
+</html>

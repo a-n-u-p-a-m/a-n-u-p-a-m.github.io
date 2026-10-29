@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anupam Dwivedi — Portfolio</title>
+<meta name="description" content="M.Tech CSE at IIIT Hyderabad. Mechanistic interpretability, causal evaluation of machine learning systems, and applied ML.">
+<style>
+:root{
+  --bg:#fbfaf7; --bg-alt:#f3f1ea; --ink:#16181d; --ink-soft:#4a505c; --ink-faint:#767d8c;
+  --rule:#ddd9cd; --rule-soft:#e9e5db;
+  --accent:#7a4a1e; --accent-soft:#f0e4d4; --accent-ink:#5c3514;
+  --code-bg:#f5f2eb; --code-ink:#2d2a24;
+  --ok:#2f6b47; --warn:#8a5a10; --flag:#8d3030;
+  --max:min(1180px,100%);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131519; --bg-alt:#1a1d23; --ink:#e7e5e0; --ink-soft:#b2b6bf; --ink-faint:#858b97;
+    --rule:#2c3038; --rule-soft:#23262c;
+    --accent:#d9a86a; --accent-soft:#2a221a; --accent-ink:#e8c396;
+    --code-bg:#1c1f25; --code-ink:#dcd9d2;
+    --ok:#6fbf8e; --warn:#d6a44a; --flag:#e07b7b;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131519; --bg-alt:#1a1d23; --ink:#e7e5e0; --ink-soft:#b2b6bf; --ink-faint:#858b97;
+  --rule:#2c3038; --rule-soft:#23262c;
+  --accent:#d9a86a; --accent-soft:#2a221a; --accent-ink:#e8c396;
+  --code-bg:#1c1f25; --code-ink:#dcd9d2;
+  --ok:#6fbf8e; --warn:#d6a44a; --flag:#e07b7b;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:1.5rem}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:16.5px/1.68 "Iowan Old Style","Charter","Georgia","Source Serif 4",serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--max); margin:0 auto; padding:0 16px}
+.shell{display:grid; grid-template-columns:250px minmax(0,1fr); gap:46px; align-items:start}
+@media (max-width:900px){ .shell{grid-template-columns:1fr; gap:0} }
+
+/* ---------- masthead ---------- */
+header.mast{border-bottom:1px solid var(--rule); background:var(--bg-alt)}
+header.mast .wrap{padding-top:34px; padding-bottom:30px}
+.kicker{
+  font:600 11.5px/1 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:14px;
+}
+h1{font-size:clamp(27px,4.3vw,42px); line-height:1.14; margin:0 0 14px; font-weight:600; letter-spacing:-.015em}
+.standfirst{font-size:18px; color:var(--ink-soft); margin:0; max-width:62ch}
+.meta{
+  display:flex; flex-wrap:wrap; gap:8px 22px; margin-top:22px;
+  font:13px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink-faint);
+}
+.meta b{color:var(--ink-soft); font-weight:600}
+.meta a{color:var(--accent); text-decoration:none; border-bottom:1px solid var(--accent-soft)}
+.meta a:hover{border-bottom-color:var(--accent)}
+
+/* ---------- nav ---------- */
+nav.toc{
+  position:sticky; top:20px; padding:30px 0 40px;
+  font:13.5px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+nav.toc .lbl{font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:12px; font-weight:600}
+nav.toc ol{list-style:none; margin:0; padding:0; counter-reset:toc}
+nav.toc li{counter-increment:toc; margin:0 0 2px}
+nav.toc a{
+  display:block; padding:5px 10px 5px 30px; color:var(--ink-soft); text-decoration:none;
+  border-left:2px solid transparent; border-radius:0 4px 4px 0; position:relative;
+}
+nav.toc a::before{
+  content:counter(toc); position:absolute; left:8px; color:var(--ink-faint);
+  font-variant-numeric:tabular-nums; font-size:11.5px; top:6px;
+}
+nav.toc a:hover{background:var(--bg-alt); color:var(--ink)}
+@media (max-width:900px){
+  nav.toc{position:static; padding:24px 0 8px; border-bottom:1px solid var(--rule-soft)}
+  nav.toc ol{columns:2; column-gap:20px}
+}
+
+/* ---------- body ---------- */
+main{padding:34px 0 90px; min-width:0}
+section{margin:0 0 56px; scroll-margin-top:20px}
+h2{
+  font-size:clamp(21px,2.8vw,27px); font-weight:600; letter-spacing:-.01em;
+  margin:0 0 6px; padding-bottom:10px; border-bottom:1px solid var(--rule);
+}
+h2 .num{color:var(--accent); font-variant-numeric:tabular-nums; margin-right:12px; font-size:.78em; font-weight:600}
+h3{font-size:18.5px; font-weight:600; margin:34px 0 8px; color:var(--ink)}
+h4{font-size:15.5px; font-weight:600; margin:24px 0 6px; color:var(--ink-soft);
+   font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.005em}
+p{margin:0 0 15px; max-width:74ch}
+ul,ol{margin:0 0 15px; padding-left:24px; max-width:74ch}
+li{margin:0 0 7px}
+li > ul, li > ol{margin-top:7px}
+strong{font-weight:600}
+em{font-style:italic}
+a{color:var(--accent)}
+hr{border:0; border-top:1px solid var(--rule-soft); margin:34px 0}
+.lede{font-size:17.5px; color:var(--ink-soft); max-width:70ch}
+
+/* ---------- code ---------- */
+code{
+  font:0.875em/1.5 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  background:var(--code-bg); color:var(--code-ink); padding:.13em .38em; border-radius:3px;
+  border:1px solid var(--rule-soft); word-break:break-word;
+}
+pre{
+  background:var(--code-bg); border:1px solid var(--rule-soft); border-radius:7px;
+  padding:15px 17px; overflow-x:auto; margin:0 0 18px;
+  font:13px/1.62 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  color:var(--code-ink);
+}
+pre code{background:none; border:0; padding:0; font-size:inherit; word-break:normal}
+pre.tree{font-size:12.3px; line-height:1.55}
+.filename{
+  font:600 11.5px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:var(--ink-faint); margin:0 0 6px; letter-spacing:.02em;
+}
+.filename::before{content:"▸ "; color:var(--accent)}
+
+/* ---------- callouts ---------- */
+.note{
+  border-left:3px solid var(--accent); background:var(--accent-soft);
+  padding:14px 18px; margin:0 0 20px; border-radius:0 6px 6px 0; max-width:76ch;
+}
+.note p:last-child{margin-bottom:0}
+.note .tag{
+  display:block; font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent-ink); margin-bottom:8px;
+}
+.note.flag{border-left-color:var(--flag)} .note.flag .tag{color:var(--flag)}
+.note.ok{border-left-color:var(--ok)} .note.ok .tag{color:var(--ok)}
+.note.warn{border-left-color:var(--warn)} .note.warn .tag{color:var(--warn)}
+.note.plain{background:var(--bg-alt); border-left-color:var(--rule)}
+.note.plain .tag{color:var(--ink-faint)}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto; margin:0 0 20px; -webkit-overflow-scrolling:touch}
+table{
+  border-collapse:collapse; width:100%; min-width:430px;
+  font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+caption{
+  caption-side:top; text-align:left; font-size:12.5px; color:var(--ink-faint);
+  padding:0 0 8px; font-family:ui-sans-serif,system-ui,sans-serif;
+}
+th,td{padding:8px 13px; text-align:left; border-bottom:1px solid var(--rule-soft); vertical-align:top}
+th{
+  font-weight:600; font-size:12px; letter-spacing:.055em; text-transform:uppercase;
+  color:var(--ink-faint); border-bottom:1px solid var(--rule); white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:1px solid var(--rule)}
+td.num,th.num{text-align:right; font-variant-numeric:tabular-nums}
+tbody tr:hover{background:var(--bg-alt)}
+td code{font-size:.84em}
+
+/* ---------- misc ---------- */
+.deck{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); margin:0 0 22px}
+.card{border:1px solid var(--rule-soft); border-radius:8px; padding:14px 16px; background:var(--bg-alt)}
+.card .k{
+  font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-faint); margin-bottom:7px;
+}
+.card .v{font-size:21px; font-weight:600; letter-spacing:-.01em; font-variant-numeric:tabular-nums}
+.card .d{font-size:13px; color:var(--ink-soft); margin-top:5px; line-height:1.45;
+         font-family:ui-sans-serif,system-ui,sans-serif}
+figure{margin:0 0 22px}
+figure svg{display:block; width:100%; height:auto; max-width:100%}
+figcaption{font-size:13px; color:var(--ink-faint); margin-top:9px; max-width:70ch;
+           font-family:ui-sans-serif,system-ui,sans-serif; line-height:1.5}
+.eq{
+  background:var(--bg-alt); border:1px solid var(--rule-soft); border-radius:7px;
+  padding:4px 18px; margin:0 0 18px; overflow-x:auto;
+}
+.pill{
+  display:inline-block; font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.07em;
+  text-transform:uppercase; padding:4px 9px; border-radius:20px;
+  background:var(--accent-soft); color:var(--accent-ink); margin:0 6px 6px 0;
+}
+.srconly{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+footer.foot{
+  border-top:1px solid var(--rule); background:var(--bg-alt); padding:24px 0 40px;
+  font:13.5px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink-faint);
+}
+footer.foot .wrap{max-width:var(--max)}
+footer.foot p{max-width:76ch; margin:0 0 9px}
+.themer{
+  position:fixed; right:14px; bottom:14px; z-index:50;
+  border:1px solid var(--rule); background:var(--bg-alt); color:var(--ink-soft);
+  border-radius:20px; padding:7px 14px; cursor:pointer;
+  font:600 12px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.04em;
+}
+.themer:hover{color:var(--ink); border-color:var(--accent)}
+@media print{ .themer,nav.toc{display:none} .shell{grid-template-columns:1fr} body{background:#fff;color:#000} }
+mjx-container{overflow-x:auto; overflow-y:hidden; max-width:100%}
+mjx-container[display="true"]{margin:.7em 0 !important}
+
+/* ---------- set navigation ---------- */
+.setbar{border-bottom:1px solid var(--rule-soft); background:var(--bg)}
+.setbar .wrap{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding-top:11px; padding-bottom:11px;
+  font:13px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.setbar a{color:var(--ink-soft); text-decoration:none}
+.setbar a:hover{color:var(--accent)}
+.setbar .home{font-weight:600; color:var(--ink-soft); white-space:nowrap}
+.setbar .home span{color:var(--accent)}
+.setbar .pos{color:var(--ink-faint); font-variant-numeric:tabular-nums; white-space:nowrap}
+.setbar .jump{display:flex; gap:14px; align-items:center; min-width:0}
+.setbar .jump a{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+@media (max-width:700px){ .setbar .jump .lbl2{display:none} }
+
+nav.toc .sibs{margin-top:26px; padding-top:18px; border-top:1px solid var(--rule-soft)}
+nav.toc .sibs ul{list-style:none; margin:0; padding:0}
+nav.toc .sibs li{margin:0 0 1px; counter-increment:none}
+nav.toc .sibs a{
+  display:block; padding:5px 10px 5px 30px; color:var(--ink-faint); text-decoration:none;
+  border-left:2px solid transparent; border-radius:0 4px 4px 0; position:relative; font-size:13px;
+}
+nav.toc .sibs a .n{position:absolute; left:8px; font-variant-numeric:tabular-nums; font-size:11.5px}
+nav.toc .sibs a:hover{background:var(--bg-alt); color:var(--ink)}
+nav.toc .sibs a[aria-current="page"]{
+  color:var(--ink); font-weight:600; border-left-color:var(--accent); background:var(--accent-soft);
+}
+
+.pager{
+  display:grid; gap:14px; grid-template-columns:1fr 1fr; margin:10px 0 0;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (max-width:620px){ .pager{grid-template-columns:1fr} }
+.pager a{
+  display:block; border:1px solid var(--rule-soft); border-radius:8px; padding:14px 16px;
+  text-decoration:none; background:var(--bg-alt); color:var(--ink);
+}
+.pager a:hover{border-color:var(--accent)}
+.pager .dir{
+  display:block; font:600 10.5px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:7px;
+}
+.pager .t{display:block; font-size:14.5px; font-weight:600; line-height:1.35}
+.pager .next{text-align:right}
+.pager .spacer{border:1px dashed var(--rule-soft); border-radius:8px; opacity:.35}
+
+/* ---------- index page ---------- */
+.indexwrap{max-width:900px; margin:0 auto; padding:0 16px}
+main.index{padding:36px 0 80px}
+.projlist{display:flex; flex-direction:column; gap:16px; margin:0 0 44px}
+.proj{
+  display:block; border:1px solid var(--rule-soft); border-radius:10px; padding:20px 22px;
+  text-decoration:none; color:var(--ink); background:var(--bg-alt); position:relative;
+}
+.proj:hover{border-color:var(--accent)}
+.proj .pnum{
+  font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.14em; color:var(--accent);
+  display:block; margin-bottom:9px;
+}
+.proj h3{margin:0 0 8px; font-size:20px; font-weight:600; letter-spacing:-.01em; line-height:1.25}
+.proj p{margin:0 0 12px; color:var(--ink-soft); font-size:15.5px; max-width:68ch}
+.proj .tags{display:flex; flex-wrap:wrap; gap:6px 8px; font-family:ui-sans-serif,system-ui,sans-serif}
+.proj .tag2{
+  font-size:11.5px; letter-spacing:.03em; color:var(--ink-faint);
+  border:1px solid var(--rule-soft); border-radius:20px; padding:3px 10px; background:var(--bg);
+}
+.proj .when{
+  position:absolute; top:20px; right:22px; font:12px/1 ui-sans-serif,system-ui,sans-serif;
+  color:var(--ink-faint); font-variant-numeric:tabular-nums;
+}
+@media (max-width:620px){ .proj .when{position:static; display:block; margin-bottom:9px} }
+
+/* ---------- portfolio page ---------- */
+.pwrap{max-width:1000px; margin:0 auto; padding:0 18px}
+header.hero{border-bottom:1px solid var(--rule); background:var(--bg-alt)}
+header.hero .pwrap{padding:52px 18px 44px}
+.hero h1{font-size:clamp(32px,6vw,52px); margin:0 0 16px; letter-spacing:-.025em; line-height:1.05}
+.hero .role{
+  font:600 12px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:18px;
+}
+.hero .bio{font-size:18.5px; color:var(--ink-soft); max-width:60ch; margin:0 0 10px}
+.hero .bio strong{color:var(--ink); font-weight:600}
+.contact{
+  display:flex; flex-wrap:wrap; gap:10px 10px; margin-top:26px;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.contact a, .contact span.c{
+  display:inline-flex; align-items:center; gap:7px; font-size:13.5px;
+  border:1px solid var(--rule); border-radius:22px; padding:7px 15px;
+  text-decoration:none; color:var(--ink-soft); background:var(--bg);
+}
+.contact a:hover{border-color:var(--accent); color:var(--accent)}
+.contact .ic{color:var(--accent); font-size:12px}
+
+main.pf{padding:0 0 90px}
+.band{padding:52px 0 0}
+.band + .band{border-top:1px solid var(--rule-soft); margin-top:52px}
+h2.sec{
+  font-size:13px; font-weight:600; letter-spacing:.17em; text-transform:uppercase;
+  color:var(--ink-faint); margin:0 0 26px; padding:0; border:0;
+  font-family:ui-sans-serif,system-ui,sans-serif;
+}
+h2.sec::before{content:""; display:inline-block; width:22px; height:1px;
+  background:var(--accent); vertical-align:middle; margin-right:11px}
+
+/* projects */
+.pcards{display:flex; flex-direction:column; gap:18px}
+.pcard{
+  border:1px solid var(--rule-soft); border-radius:11px; padding:24px 26px;
+  background:var(--bg-alt); position:relative;
+}
+.pcard:hover{border-color:var(--rule)}
+.pcard .head{display:flex; justify-content:space-between; align-items:baseline; gap:18px; flex-wrap:wrap}
+.pcard h3{margin:0 0 4px; font-size:21px; font-weight:600; letter-spacing:-.012em; line-height:1.25}
+.pcard h3 a{color:var(--ink); text-decoration:none}
+.pcard h3 a:hover{color:var(--accent)}
+.pcard .per{
+  font:12.5px/1 ui-sans-serif,system-ui,sans-serif; color:var(--ink-faint);
+  font-variant-numeric:tabular-nums; white-space:nowrap;
+}
+.pcard .sub{
+  font:13px/1.4 ui-sans-serif,system-ui,sans-serif; color:var(--accent);
+  margin:0 0 13px; letter-spacing:.01em;
+}
+.pcard p{margin:0 0 15px; color:var(--ink-soft); font-size:15.5px; max-width:72ch}
+.pcard p strong{color:var(--ink); font-weight:600}
+.pcard .foot2{display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center}
+.pcard .go{
+  font:600 13px/1 ui-sans-serif,system-ui,sans-serif; text-decoration:none; color:var(--accent);
+  border:1px solid var(--accent); border-radius:20px; padding:8px 15px;
+}
+.pcard .go:hover{background:var(--accent); color:var(--bg-alt)}
+.pcard .repo{
+  font:13px/1 ui-sans-serif,system-ui,sans-serif; color:var(--ink-faint);
+  text-decoration:none; border-bottom:1px solid var(--rule); padding-bottom:2px;
+}
+.pcard .repo:hover{color:var(--accent); border-color:var(--accent)}
+.stack{
+  font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:var(--ink-faint); margin-left:auto; text-align:right; max-width:46ch;
+  text-wrap:balance;
+}
+@media (max-width:760px){ .stack{margin-left:0; text-align:left; width:100%} }
+
+/* education */
+.edu{display:flex; flex-direction:column; gap:0}
+.edurow{
+  display:grid; grid-template-columns:1fr auto; gap:6px 24px; align-items:baseline;
+  padding:16px 0; border-bottom:1px solid var(--rule-soft);
+}
+.edurow:last-child{border-bottom:0}
+.edurow .inst{font-size:16.5px; font-weight:600}
+.edurow .deg{
+  grid-column:1; font:14px/1.5 ui-sans-serif,system-ui,sans-serif; color:var(--ink-soft);
+}
+.edurow .when2{
+  grid-row:1 / span 2; grid-column:2; text-align:right;
+  font:13px/1.5 ui-sans-serif,system-ui,sans-serif; color:var(--ink-faint);
+  font-variant-numeric:tabular-nums; white-space:nowrap;
+}
+.edurow .where{color:var(--ink-faint); font-weight:400; font-size:14px}
+.mark{color:var(--accent); font-variant-numeric:tabular-nums; font-weight:600}
+
+/* achievements */
+.achv{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(168px,1fr))}
+@media (min-width:900px){ .achv{grid-template-columns:repeat(5,1fr)} }
+.ach{border:1px solid var(--rule-soft); border-radius:10px; padding:18px 20px; background:var(--bg-alt)}
+.ach .big{font-size:27px; font-weight:600; letter-spacing:-.02em; font-variant-numeric:tabular-nums;
+  color:var(--accent); line-height:1.1}
+.ach .what{font:13.5px/1.5 ui-sans-serif,system-ui,sans-serif; color:var(--ink-soft); margin-top:8px}
+
+/* skills */
+.skills{display:grid; gap:20px 34px; grid-template-columns:repeat(auto-fit,minmax(270px,1fr))}
+.sk .k2{
+  font:600 11.5px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--ink-faint); margin-bottom:11px;
+}
+.chips{display:flex; flex-wrap:wrap; gap:7px}
+.chip{
+  font:13px/1 ui-sans-serif,system-ui,sans-serif; border:1px solid var(--rule-soft);
+  border-radius:6px; padding:6px 11px; color:var(--ink-soft); background:var(--bg-alt);
+}
+.chip.hi{border-color:var(--accent); color:var(--accent-ink); background:var(--accent-soft); font-weight:600}
+
+/* coursework */
+.courses{columns:3; column-gap:30px; font:14.5px/2 ui-sans-serif,system-ui,sans-serif; color:var(--ink-soft)}
+.courses div{break-inside:avoid}
+@media (max-width:820px){ .courses{columns:2} }
+@media (max-width:520px){ .courses{columns:1} }
+
+footer.pfoot{
+  border-top:1px solid var(--rule); background:var(--bg-alt); padding:34px 0 46px;
+  font:14px/1.6 ui-sans-serif,system-ui,sans-serif; color:var(--ink-faint);
+}
+footer.pfoot p{max-width:70ch; margin:0 0 10px}
+footer.pfoot a{color:var(--accent)}
+@media print{ .themer{display:none} body{background:#fff;color:#000} }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="pwrap">
+    <div class="role">M.Tech CSE · IIIT Hyderabad</div>
+    <h1>Anupam Dwivedi</h1>
+    <p class="bio">I work on <strong>mechanistic interpretability</strong> and the
+    <strong>causal evaluation</strong> of machine learning systems — taking models apart to find
+    out what they actually compute, and building the controls that decide whether the answer can
+    be trusted.</p>
+    <p class="bio">Recent work spans reverse-engineering a temporal graph network, testing whether
+    a language model's features are genuinely semantic against human fMRI, and designing an
+    incentive-compatible audit for pricing algorithms that learn to collude.</p>
+    <div class="contact">
+      <a href="https://github.com/a-n-u-p-a-m"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg> github.com/a-n-u-p-a-m</a>
+      <a href="https://www.linkedin.com/in/anupam-dwivedi-990544291"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg> LinkedIn</a>
+      <a href="mailto:anupam.2347@gmail.com"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg> anupam.2347@gmail.com</a>
+      <a href="tel:+918960592826"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg> +91 896-059-2826</a>
+      <span class="c"><svg class="ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg> Hyderabad, India</span>
+    </div>
+  </div>
+</header>
+
+<div class="pwrap">
+  <main class="pf">
+
+    <section class="band">
+      <h2 class="sec">Selected Projects</h2>
+      <div class="pcards">
+      <article class="pcard">
+        <div class="head">
+          <div>
+            <h3><a href="01-tgn-mechanistic-interpretability.html">Reverse-Engineering a Temporal Graph Network</a></h3>
+            <p class="sub">Mechanistic Interpretability · Temporal Modeling · Causal Evaluation</p>
+          </div>
+          <span class="per">Jun – Oct 2026</span>
+        </div>
+        <p>Trained a <strong>121,546-parameter</strong> Temporal Graph Network to detect A→B→C temporal motifs within a Δt window, then took it apart. A hand-rolled GRU exposes <strong>19 intervention points</strong> for activation patching, ablation, gate clamping and candidate-state replacement across <strong>17 experiments</strong>. Established that the model implements independent accumulation rather than compositional routing, and that the GRU gates' motif-specific deviation is causally inert despite being almost perfectly discriminable observationally. Treated instrument validity as a result in its own right — ceiling arms verify every patching claim, one permutation control was rejected as an invalid null, and a sign reversal in my own earlier analysis is documented rather than dropped.</p>
+        <div class="foot2">
+          <a class="go" href="01-tgn-mechanistic-interpretability.html">Read the full write-up</a>
+          <a class="repo" href="https://github.com/a-n-u-p-a-m/TGN_Mechanistic_Interpretability">TGN_Mechanistic_Interpretability</a>
+          <span class="stack">Python · PyTorch · NumPy · SciPy</span>
+        </div>
+      </article>
+      <article class="pcard">
+        <div class="head">
+          <div>
+            <h3><a href="02-cross-language-brain-alignment.html">Mechanistic Interpretability of Cross-Language Brain Alignment</a></h3>
+            <p class="sub">Interpretability · Computational Neuroscience · NLP</p>
+          </div>
+          <span class="per">Mar – May 2026</span>
+        </div>
+        <p>Benchmarked five transformer architecture families against the fMRI of <strong>84 subjects</strong> (49 English, 35 Chinese) listening to <em>The Little Prince</em>, across 200 cortical regions. Led the sparse-autoencoder and normalization-layer work: five SAE variants built from scratch over Qwen-2.5-0.5B hidden states, evaluated by ridge regression with hemodynamic lag stacking. Found that SAE features at Layer 11 peak at <strong>R = 0.079</strong> with zero-shot English→Chinese transfer at R = 0.064, outperforming every normalization baseline by ~75% — and that the SAE cannot reconstruct across languages while still predicting across them, which is what shows the features are semantic rather than language-shaped.</p>
+        <div class="foot2">
+          <a class="go" href="02-cross-language-brain-alignment.html">Read the full write-up</a>
+          <a class="repo" href="https://github.com/a-n-u-p-a-m/Team-16">Team-16</a>
+          <span class="stack">PyTorch · HuggingFace · PEFT · bitsandbytes · nilearn</span>
+        </div>
+      </article>
+      <article class="pcard">
+        <div class="head">
+          <div>
+            <h3><a href="03-algorithmic-collusion-audit-mechanism.html">Algorithmic Collusion Detection via Incentive-Compatible Audits</a></h3>
+            <p class="sub">Reinforcement Learning · Game Theory · Mechanism Design</p>
+          </div>
+          <span class="per">Mar – Apr 2026</span>
+        </div>
+        <p>Replicated Calvano et al. (2020) to confirm that independent Q-Learning and SARSA pricing agents converge to supracompetitive joint-monopoly pricing with no communication, then reframed detection as a <strong>mechanism design</strong> problem rather than a pattern-recognition one. Designed an audit protocol ℳ = (T, τ, F) that injects a synthetic competitive entrant, making honest price revelation weakly dominant. Derived the minimum audit duration <strong>T*</strong> beyond which mimicking competition costs more than the expected fine, proved its comparative statics — including the counterintuitive result that raising the fine makes detection harder — and verified both numerically across seven seeds.</p>
+        <div class="foot2">
+          <a class="go" href="03-algorithmic-collusion-audit-mechanism.html">Read the full write-up</a>
+          <a class="repo" href="https://github.com/a-n-u-p-a-m/Game_Theory_Usecase">Game_Theory_Usecase</a>
+          <span class="stack">Python · NumPy · SciPy · Matplotlib · Streamlit</span>
+        </div>
+      </article>
+      <article class="pcard">
+        <div class="head">
+          <div>
+            <h3><a href="04-spectral-soil-modeler.html">Spectral Soil Modeler</a></h3>
+            <p class="sub">Machine Learning · Applied Spectroscopy · Full-Stack ML</p>
+          </div>
+          <span class="per">Oct – Dec 2025</span>
+        </div>
+        <p>End-to-end ML application predicting soil properties from hyperspectral data, with <strong>15 model–technique combinations</strong> across five algorithms and three spectral transforms. Built a dual-paradigm architecture running fixed-hyperparameter and CV-tuned pipelines in parallel, so the contribution of tuning is measurable rather than assumed, and implemented a custom Cubist estimator — gradient-boosted rules blended with k-NN smoothing — because the field-standard model has no mature Python implementation. Wired an LLM analytics layer over all 15 results, confined to explaining numbers computed in Python rather than computing any itself.</p>
+        <div class="foot2">
+          <a class="go" href="04-spectral-soil-modeler.html">Read the full write-up</a>
+          <a class="repo" href="https://github.com/a-n-u-p-a-m/Team27_Spectral_Soil_Modeler">Team27_Spectral_Soil_Modeler</a>
+          <span class="stack">scikit-learn · Streamlit · Plotly · Gemini / OpenAI · joblib</span>
+        </div>
+      </article>
+      <article class="pcard">
+        <div class="head">
+          <div>
+            <h3><a href="05-detection-of-computer-generated-text.html">Detection of Computer-Generated Text</a></h3>
+            <p class="sub">NLP · Deep Learning · Machine Learning</p>
+          </div>
+          <span class="per">Mar – May 2023</span>
+        </div>
+        <p>Raced <strong>eleven classifiers</strong> — classical ML on TF-IDF and on BERT embeddings, character-level CharCNN and GRU models, and fine-tuned BERT and RoBERTa — on the same 25,572 TweepFake tweets, varying representation independently of architecture. Transformers reached <strong>89.5%</strong>, but the finding that aged best came from the failure analysis: detection degrades with text length and breaks down below roughly 85–189 words, which is the structural reason every AI-text detector since carries the same caveat.</p>
+        <div class="foot2">
+          <a class="go" href="05-detection-of-computer-generated-text.html">Read the full write-up</a>
+          <a class="repo" href="https://github.com/a-n-u-p-a-m/Detection-of-Computer-Generated-Text">Detection-of-Computer-Generated-Text</a>
+          <span class="stack">PyTorch · TensorFlow / Keras · scikit-learn · HuggingFace</span>
+        </div>
+      </article>
+      <article class="pcard">
+        <div class="head">
+          <div>
+            <h3><a href="06-hate-speech-and-counter-speech.html">Implicit Hate-Speech Detection and Counter-Speech Generation</a></h3>
+            <p class="sub">NLP · Deep Learning · Generation</p>
+          </div>
+          <span class="per">Oct – Dec 2023</span>
+        </div>
+        <p>Targeted hate speech that never uses a slur — where the harm is carried by presupposition rather than vocabulary, and lexical filters see nothing. Paired pre-trained toxicity classifiers with an <strong>emotion</strong> classifier, on the argument that counter-speech has to match register to land, then built two routes to generation: prompt-based with GPT-2 and GPT-Neo, and GPT-2 fine-tuned on the expert-written Multi-Target CONAN corpus. Published a 15-epoch trace of the model learning to argue, which shows format being acquired before content and learning that is anything but monotone.</p>
+        <div class="foot2">
+          <a class="go" href="06-hate-speech-and-counter-speech.html">Read the full write-up</a>
+          <a class="repo" href="https://github.com/a-n-u-p-a-m/Hate-Speech-Detection-and-Counter-Speech-Generation">Hate-Speech-Detection-and-Counter-Speech-Generation</a>
+          <span class="stack">PyTorch · TensorFlow / Keras · HuggingFace Transformers</span>
+        </div>
+      </article>
+      </div>
+    </section>
+
+    <section class="band">
+      <h2 class="sec">Education</h2>
+      <div class="edu">
+      <div class="edurow">
+        <div class="inst">International Institute of Information Technology <span class="where">· Hyderabad, India</span></div>
+        <span class="when2">July 2025 – Present</span>
+        <div class="deg">M.Tech, Computer Science and Engineering &nbsp;·&nbsp; <span class="mark">CGPA 8.29</span></div>
+      </div>
+      <div class="edurow">
+        <div class="inst">Indian Institute of Information Technology <span class="where">· Prayagraj, India</span></div>
+        <span class="when2">Dec 2020 – Jun 2024</span>
+        <div class="deg">B.Tech, Information Technology &nbsp;·&nbsp; <span class="mark">CGPA 7.98</span></div>
+      </div>
+      <div class="edurow">
+        <div class="inst">Vardhman Public School <span class="where">· Mirzapur, India</span></div>
+        <span class="when2">2020</span>
+        <div class="deg">Class XII &nbsp;·&nbsp; <span class="mark">96.60%</span></div>
+      </div>
+      <div class="edurow">
+        <div class="inst">St. Joseph's School <span class="where">· Shaktinagar, India</span></div>
+        <span class="when2">2018</span>
+        <div class="deg">Class X &nbsp;·&nbsp; <span class="mark">97.80%</span></div>
+      </div>
+      </div>
+    </section>
+
+    <section class="band">
+      <h2 class="sec">Achievements</h2>
+      <div class="achv">
+      <div class="ach"><div class="big">AIR 6</div><div class="what">PGEE 2025, conducted by IIIT Hyderabad</div></div>
+      <div class="ach"><div class="big">Rank 37</div><div class="what">ISI Kolkata admission test and interview merit list</div></div>
+      <div class="ach"><div class="big">98.7<span style='font-size:16px'>%ile</span></div><div class="what">GATE CSE — AIR 2217</div></div>
+      <div class="ach"><div class="big">98.67<span style='font-size:16px'>%ile</span></div><div class="what">GATE DA — AIR 764</div></div>
+      <div class="ach"><div class="big">99.68<span style='font-size:16px'>%ile</span></div><div class="what">JEE Mains</div></div>
+      </div>
+    </section>
+
+    <section class="band">
+      <h2 class="sec">Technical Skills</h2>
+      <div class="skills">
+      <div class="sk"><div class="k2">Programming Languages</div><div class="chips"><span class="chip hi">Python</span><span class="chip">C</span><span class="chip">C++</span><span class="chip">SQL</span><span class="chip">HTML</span><span class="chip">CSS</span></div></div>
+      <div class="sk"><div class="k2">Libraries &amp; Frameworks</div><div class="chips"><span class="chip hi">PyTorch</span><span class="chip">TensorFlow</span><span class="chip">Keras</span><span class="chip">NumPy</span><span class="chip">Pandas</span><span class="chip">Scikit-learn</span><span class="chip">NLTK</span><span class="chip">SpaCy</span><span class="chip">Django</span><span class="chip">Flask</span></div></div>
+      <div class="sk"><div class="k2">Tools &amp; Technologies</div><div class="chips"><span class="chip hi">Hugging Face</span><span class="chip">Docker</span><span class="chip">Spark</span><span class="chip">Hadoop</span><span class="chip">Hive</span><span class="chip">MySQL</span><span class="chip">GitHub</span><span class="chip">Jupyter</span><span class="chip">Visual Studio Code</span></div></div>
+      <div class="sk"><div class="k2">Operating Systems</div><div class="chips"><span class="chip">Linux</span><span class="chip">Windows</span></div></div>
+      <div class="sk"><div class="k2">Soft Skills</div><div class="chips"><span class="chip">Technical Writing</span><span class="chip">Public Speaking</span><span class="chip">Time Management</span></div></div>
+      </div>
+    </section>
+
+    <section class="band">
+      <h2 class="sec">Relevant Coursework</h2>
+      <div class="courses"><div>Statistical Methods in AI</div><div>Deep Learning</div><div>Natural Language Processing</div><div>Cognitive Science and AI</div><div>Introduction to Game Theory</div><div>Optimization Methods</div><div>Linear Algebra</div><div>Probability and Statistics</div><div>Advanced Operating Systems</div><div>Data Structures and Algorithms</div><div>Software Systems Development</div></div>
+    </section>
+
+  </main>
+</div>
+
+<footer class="pfoot">
+  <div class="pwrap">
+    <p>Each project above links to a full technical write-up — the concepts and mathematics, a
+    walkthrough of the codebase, the results, and an honest account of the limits. Those documents
+    were written by reading the source directly, and every figure in them was checked against it.</p>
+    <p>Reach me at <a href="mailto:anupam.2347@gmail.com">anupam.2347@gmail.com</a>
+    or on <a href="https://www.linkedin.com/in/anupam-dwivedi-990544291">LinkedIn</a>.</p>
+  </div>
+</footer>
+
+<button class="themer" id="themer" type="button">Theme</button>
+<script>
+(function(){
+  var b=document.getElementById('themer'), r=document.documentElement;
+  var saved=null; try{saved=localStorage.getItem('doc-theme')}catch(e){}
+  if(saved){r.setAttribute('data-theme',saved)}
+  b.addEventListener('click',function(){
+    var cur=r.getAttribute('data-theme');
+    if(!cur){cur=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}
+    var next=cur==='dark'?'light':'dark';
+    r.setAttribute('data-theme',next);
+    try{localStorage.setItem('doc-theme',next)}catch(e){}
+  });
+})();
+</script>
+
+</body>
+</html>

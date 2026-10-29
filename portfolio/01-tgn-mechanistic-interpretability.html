@@ -1,0 +1,1302 @@
+<!doctype html>
+<html lang="en" >
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reverse-Engineering a Temporal Graph Network</title>
+<meta name="description" content="A 121,546-parameter Temporal Graph Network is trained to detect A→B→C temporal motifs, then taken apart with activation patching, gate clamping and candidate-state replacement — and the instruments themselves are put on trial alongside the model.">
+<style>
+:root{
+  --bg:#fbfaf7; --bg-alt:#f3f1ea; --ink:#16181d; --ink-soft:#4a505c; --ink-faint:#767d8c;
+  --rule:#ddd9cd; --rule-soft:#e9e5db;
+  --accent:#7a4a1e; --accent-soft:#f0e4d4; --accent-ink:#5c3514;
+  --code-bg:#f5f2eb; --code-ink:#2d2a24;
+  --ok:#2f6b47; --warn:#8a5a10; --flag:#8d3030;
+  --max:min(1180px,100%);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131519; --bg-alt:#1a1d23; --ink:#e7e5e0; --ink-soft:#b2b6bf; --ink-faint:#858b97;
+    --rule:#2c3038; --rule-soft:#23262c;
+    --accent:#d9a86a; --accent-soft:#2a221a; --accent-ink:#e8c396;
+    --code-bg:#1c1f25; --code-ink:#dcd9d2;
+    --ok:#6fbf8e; --warn:#d6a44a; --flag:#e07b7b;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131519; --bg-alt:#1a1d23; --ink:#e7e5e0; --ink-soft:#b2b6bf; --ink-faint:#858b97;
+  --rule:#2c3038; --rule-soft:#23262c;
+  --accent:#d9a86a; --accent-soft:#2a221a; --accent-ink:#e8c396;
+  --code-bg:#1c1f25; --code-ink:#dcd9d2;
+  --ok:#6fbf8e; --warn:#d6a44a; --flag:#e07b7b;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:1.5rem}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:16.5px/1.68 "Iowan Old Style","Charter","Georgia","Source Serif 4",serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--max); margin:0 auto; padding:0 16px}
+.shell{display:grid; grid-template-columns:250px minmax(0,1fr); gap:46px; align-items:start}
+@media (max-width:900px){ .shell{grid-template-columns:1fr; gap:0} }
+
+/* ---------- masthead ---------- */
+header.mast{border-bottom:1px solid var(--rule); background:var(--bg-alt)}
+header.mast .wrap{padding-top:34px; padding-bottom:30px}
+.kicker{
+  font:600 11.5px/1 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:14px;
+}
+h1{font-size:clamp(27px,4.3vw,42px); line-height:1.14; margin:0 0 14px; font-weight:600; letter-spacing:-.015em}
+.standfirst{font-size:18px; color:var(--ink-soft); margin:0; max-width:62ch}
+.meta{
+  display:flex; flex-wrap:wrap; gap:8px 22px; margin-top:22px;
+  font:13px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink-faint);
+}
+.meta b{color:var(--ink-soft); font-weight:600}
+.meta a{color:var(--accent); text-decoration:none; border-bottom:1px solid var(--accent-soft)}
+.meta a:hover{border-bottom-color:var(--accent)}
+
+/* ---------- nav ---------- */
+nav.toc{
+  position:sticky; top:20px; padding:30px 0 40px;
+  font:13.5px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+nav.toc .lbl{font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:12px; font-weight:600}
+nav.toc ol{list-style:none; margin:0; padding:0; counter-reset:toc}
+nav.toc li{counter-increment:toc; margin:0 0 2px}
+nav.toc a{
+  display:block; padding:5px 10px 5px 30px; color:var(--ink-soft); text-decoration:none;
+  border-left:2px solid transparent; border-radius:0 4px 4px 0; position:relative;
+}
+nav.toc a::before{
+  content:counter(toc); position:absolute; left:8px; color:var(--ink-faint);
+  font-variant-numeric:tabular-nums; font-size:11.5px; top:6px;
+}
+nav.toc a:hover{background:var(--bg-alt); color:var(--ink)}
+@media (max-width:900px){
+  nav.toc{position:static; padding:24px 0 8px; border-bottom:1px solid var(--rule-soft)}
+  nav.toc ol{columns:2; column-gap:20px}
+}
+
+/* ---------- body ---------- */
+main{padding:34px 0 90px; min-width:0}
+section{margin:0 0 56px; scroll-margin-top:20px}
+h2{
+  font-size:clamp(21px,2.8vw,27px); font-weight:600; letter-spacing:-.01em;
+  margin:0 0 6px; padding-bottom:10px; border-bottom:1px solid var(--rule);
+}
+h2 .num{color:var(--accent); font-variant-numeric:tabular-nums; margin-right:12px; font-size:.78em; font-weight:600}
+h3{font-size:18.5px; font-weight:600; margin:34px 0 8px; color:var(--ink)}
+h4{font-size:15.5px; font-weight:600; margin:24px 0 6px; color:var(--ink-soft);
+   font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.005em}
+p{margin:0 0 15px; max-width:74ch}
+ul,ol{margin:0 0 15px; padding-left:24px; max-width:74ch}
+li{margin:0 0 7px}
+li > ul, li > ol{margin-top:7px}
+strong{font-weight:600}
+em{font-style:italic}
+a{color:var(--accent)}
+hr{border:0; border-top:1px solid var(--rule-soft); margin:34px 0}
+.lede{font-size:17.5px; color:var(--ink-soft); max-width:70ch}
+
+/* ---------- code ---------- */
+code{
+  font:0.875em/1.5 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  background:var(--code-bg); color:var(--code-ink); padding:.13em .38em; border-radius:3px;
+  border:1px solid var(--rule-soft); word-break:break-word;
+}
+pre{
+  background:var(--code-bg); border:1px solid var(--rule-soft); border-radius:7px;
+  padding:15px 17px; overflow-x:auto; margin:0 0 18px;
+  font:13px/1.62 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  color:var(--code-ink);
+}
+pre code{background:none; border:0; padding:0; font-size:inherit; word-break:normal}
+pre.tree{font-size:12.3px; line-height:1.55}
+.filename{
+  font:600 11.5px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:var(--ink-faint); margin:0 0 6px; letter-spacing:.02em;
+}
+.filename::before{content:"▸ "; color:var(--accent)}
+
+/* ---------- callouts ---------- */
+.note{
+  border-left:3px solid var(--accent); background:var(--accent-soft);
+  padding:14px 18px; margin:0 0 20px; border-radius:0 6px 6px 0; max-width:76ch;
+}
+.note p:last-child{margin-bottom:0}
+.note .tag{
+  display:block; font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent-ink); margin-bottom:8px;
+}
+.note.flag{border-left-color:var(--flag)} .note.flag .tag{color:var(--flag)}
+.note.ok{border-left-color:var(--ok)} .note.ok .tag{color:var(--ok)}
+.note.warn{border-left-color:var(--warn)} .note.warn .tag{color:var(--warn)}
+.note.plain{background:var(--bg-alt); border-left-color:var(--rule)}
+.note.plain .tag{color:var(--ink-faint)}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto; margin:0 0 20px; -webkit-overflow-scrolling:touch}
+table{
+  border-collapse:collapse; width:100%; min-width:430px;
+  font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+caption{
+  caption-side:top; text-align:left; font-size:12.5px; color:var(--ink-faint);
+  padding:0 0 8px; font-family:ui-sans-serif,system-ui,sans-serif;
+}
+th,td{padding:8px 13px; text-align:left; border-bottom:1px solid var(--rule-soft); vertical-align:top}
+th{
+  font-weight:600; font-size:12px; letter-spacing:.055em; text-transform:uppercase;
+  color:var(--ink-faint); border-bottom:1px solid var(--rule); white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:1px solid var(--rule)}
+td.num,th.num{text-align:right; font-variant-numeric:tabular-nums}
+tbody tr:hover{background:var(--bg-alt)}
+td code{font-size:.84em}
+
+/* ---------- misc ---------- */
+.deck{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); margin:0 0 22px}
+.card{border:1px solid var(--rule-soft); border-radius:8px; padding:14px 16px; background:var(--bg-alt)}
+.card .k{
+  font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-faint); margin-bottom:7px;
+}
+.card .v{font-size:21px; font-weight:600; letter-spacing:-.01em; font-variant-numeric:tabular-nums}
+.card .d{font-size:13px; color:var(--ink-soft); margin-top:5px; line-height:1.45;
+         font-family:ui-sans-serif,system-ui,sans-serif}
+figure{margin:0 0 22px}
+figure svg{display:block; width:100%; height:auto; max-width:100%}
+figcaption{font-size:13px; color:var(--ink-faint); margin-top:9px; max-width:70ch;
+           font-family:ui-sans-serif,system-ui,sans-serif; line-height:1.5}
+.eq{
+  background:var(--bg-alt); border:1px solid var(--rule-soft); border-radius:7px;
+  padding:4px 18px; margin:0 0 18px; overflow-x:auto;
+}
+.pill{
+  display:inline-block; font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.07em;
+  text-transform:uppercase; padding:4px 9px; border-radius:20px;
+  background:var(--accent-soft); color:var(--accent-ink); margin:0 6px 6px 0;
+}
+.srconly{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+footer.foot{
+  border-top:1px solid var(--rule); background:var(--bg-alt); padding:24px 0 40px;
+  font:13.5px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink-faint);
+}
+footer.foot .wrap{max-width:var(--max)}
+footer.foot p{max-width:76ch; margin:0 0 9px}
+.themer{
+  position:fixed; right:14px; bottom:14px; z-index:50;
+  border:1px solid var(--rule); background:var(--bg-alt); color:var(--ink-soft);
+  border-radius:20px; padding:7px 14px; cursor:pointer;
+  font:600 12px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.04em;
+}
+.themer:hover{color:var(--ink); border-color:var(--accent)}
+@media print{ .themer,nav.toc{display:none} .shell{grid-template-columns:1fr} body{background:#fff;color:#000} }
+mjx-container{overflow-x:auto; overflow-y:hidden; max-width:100%}
+mjx-container[display="true"]{margin:.7em 0 !important}
+
+/* ---------- set navigation ---------- */
+.setbar{border-bottom:1px solid var(--rule-soft); background:var(--bg)}
+.setbar .wrap{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding-top:11px; padding-bottom:11px;
+  font:13px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.setbar a{color:var(--ink-soft); text-decoration:none}
+.setbar a:hover{color:var(--accent)}
+.setbar .home{font-weight:600; color:var(--ink-soft); white-space:nowrap}
+.setbar .home span{color:var(--accent)}
+.setbar .pos{color:var(--ink-faint); font-variant-numeric:tabular-nums; white-space:nowrap}
+.setbar .jump{display:flex; gap:14px; align-items:center; min-width:0}
+.setbar .jump a{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+@media (max-width:700px){ .setbar .jump .lbl2{display:none} }
+
+nav.toc .sibs{margin-top:26px; padding-top:18px; border-top:1px solid var(--rule-soft)}
+nav.toc .sibs ul{list-style:none; margin:0; padding:0}
+nav.toc .sibs li{margin:0 0 1px; counter-increment:none}
+nav.toc .sibs a{
+  display:block; padding:5px 10px 5px 30px; color:var(--ink-faint); text-decoration:none;
+  border-left:2px solid transparent; border-radius:0 4px 4px 0; position:relative; font-size:13px;
+}
+nav.toc .sibs a .n{position:absolute; left:8px; font-variant-numeric:tabular-nums; font-size:11.5px}
+nav.toc .sibs a:hover{background:var(--bg-alt); color:var(--ink)}
+nav.toc .sibs a[aria-current="page"]{
+  color:var(--ink); font-weight:600; border-left-color:var(--accent); background:var(--accent-soft);
+}
+
+.pager{
+  display:grid; gap:14px; grid-template-columns:1fr 1fr; margin:10px 0 0;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (max-width:620px){ .pager{grid-template-columns:1fr} }
+.pager a{
+  display:block; border:1px solid var(--rule-soft); border-radius:8px; padding:14px 16px;
+  text-decoration:none; background:var(--bg-alt); color:var(--ink);
+}
+.pager a:hover{border-color:var(--accent)}
+.pager .dir{
+  display:block; font:600 10.5px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:7px;
+}
+.pager .t{display:block; font-size:14.5px; font-weight:600; line-height:1.35}
+.pager .next{text-align:right}
+.pager .spacer{border:1px dashed var(--rule-soft); border-radius:8px; opacity:.35}
+
+/* ---------- index page ---------- */
+.indexwrap{max-width:900px; margin:0 auto; padding:0 16px}
+main.index{padding:36px 0 80px}
+.projlist{display:flex; flex-direction:column; gap:16px; margin:0 0 44px}
+.proj{
+  display:block; border:1px solid var(--rule-soft); border-radius:10px; padding:20px 22px;
+  text-decoration:none; color:var(--ink); background:var(--bg-alt); position:relative;
+}
+.proj:hover{border-color:var(--accent)}
+.proj .pnum{
+  font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.14em; color:var(--accent);
+  display:block; margin-bottom:9px;
+}
+.proj h3{margin:0 0 8px; font-size:20px; font-weight:600; letter-spacing:-.01em; line-height:1.25}
+.proj p{margin:0 0 12px; color:var(--ink-soft); font-size:15.5px; max-width:68ch}
+.proj .tags{display:flex; flex-wrap:wrap; gap:6px 8px; font-family:ui-sans-serif,system-ui,sans-serif}
+.proj .tag2{
+  font-size:11.5px; letter-spacing:.03em; color:var(--ink-faint);
+  border:1px solid var(--rule-soft); border-radius:20px; padding:3px 10px; background:var(--bg);
+}
+.proj .when{
+  position:absolute; top:20px; right:22px; font:12px/1 ui-sans-serif,system-ui,sans-serif;
+  color:var(--ink-faint); font-variant-numeric:tabular-nums;
+}
+@media (max-width:620px){ .proj .when{position:static; display:block; margin-bottom:9px} }
+</style>
+
+<script>
+window.MathJax={
+  tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']],processEscapes:true},
+  options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']},
+  chtml:{scale:0.98}
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
+
+</head>
+<body>
+<div class="setbar">
+  <div class="wrap">
+    <a class="home" href="index.html">&#8962; <span>Anupam Dwivedi — Project Portfolio</span></a>
+    <div class="jump"><a href="02-cross-language-brain-alignment.html" rel="next"><span class="lbl2">Cross-Language Brain Alignment</span> &rarr;</a></div>
+    <span class="pos">1 / 6</span>
+  </div>
+</div>
+
+<header class="mast">
+  <div class="wrap">
+    <div class="kicker">Project 01 &nbsp;·&nbsp; Mechanistic Interpretability</div>
+    <h1>Reverse-Engineering a Temporal Graph Network</h1>
+    <p class="standfirst">A 121,546-parameter Temporal Graph Network is trained to detect A→B→C temporal motifs, then taken apart with activation patching, gate clamping and candidate-state replacement — and the instruments themselves are put on trial alongside the model.</p>
+    <div class="meta">
+        <span><b>Period</b> Jun – Oct 2026</span>
+        <span><b>Repository</b> <a href="https://github.com/a-n-u-p-a-m/TGN_Mechanistic_Interpretability">TGN_Mechanistic_Interpretability</a></span>
+        <span><b>Stack</b> Python · PyTorch · NumPy · SciPy · PyTorch Geometric</span>
+        <span><b>Scale</b> ~12,700 lines across 55 Python files</span>
+        <span><b>Type</b> Solo research project</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="shell">
+    <nav class="toc" aria-label="Contents">
+      <div class="lbl">Contents</div>
+      <ol>
+        <li><a href="#premise">The premise, and why it is unusual</a></li>
+        <li><a href="#tgn-primer">What a Temporal Graph Network actually is</a></li>
+        <li><a href="#task">The task: temporal motif completion</a></li>
+        <li><a href="#architecture">The model, and why every piece was hand-rolled</a></li>
+        <li><a href="#mi-toolkit">The interpretability toolkit, from first principles</a></li>
+        <li><a href="#instrumentation">The intervention API</a></li>
+        <li><a href="#composition">The central finding: accumulation, not routing</a></li>
+        <li><a href="#gates">The gates: discriminable but causally inert</a></li>
+        <li><a href="#instruments">Instrument validity as a first-class result</a></li>
+        <li><a href="#dynamics">Training dynamics: when the algorithm appears</a></li>
+        <li><a href="#engineering">Engineering decisions and the alternatives</a></li>
+        <li><a href="#significance">Why this matters outside the lab</a></li>
+        <li><a href="#limits">Honest limits</a></li>
+        <li><a href="#repro">Repository map and reproduction</a></li>
+      </ol>
+      <div class="sibs">
+        <div class="lbl">The other projects</div>
+        <ul>
+          <li><a href="01-tgn-mechanistic-interpretability.html" aria-current="page"><span class="n">01</span>Reverse-Engineering a TGN</a></li>
+          <li><a href="02-cross-language-brain-alignment.html"><span class="n">02</span>Cross-Language Brain Alignment</a></li>
+          <li><a href="03-algorithmic-collusion-audit-mechanism.html"><span class="n">03</span>Algorithmic Collusion Audits</a></li>
+          <li><a href="04-spectral-soil-modeler.html"><span class="n">04</span>Spectral Soil Modeler</a></li>
+          <li><a href="05-detection-of-computer-generated-text.html"><span class="n">05</span>Detecting Machine Text</a></li>
+          <li><a href="06-hate-speech-and-counter-speech.html"><span class="n">06</span>Hate &amp; Counter Speech</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main>
+<section>
+<h2 id="premise"><span class="num">01</span>The premise, and why it is unusual</h2>
+
+<p class="lede">Mechanistic interpretability has a canon, and that canon is almost entirely about transformers on text. This project asks what happens when you point the same toolkit at a different architecture on a different data type: a <strong>Temporal Graph Network</strong> processing a stream of timestamped events.</p>
+
+<p>A Temporal Graph Network (TGN) is the dominant architecture for learning on <em>continuous-time dynamic graphs</em> — graphs where edges arrive as a timestamped stream rather than sitting in a fixed adjacency matrix. Fraud rings forming in a payments network, accounts coordinating on a social platform, packets traversing a compromised subnet, a cascade of trades across venues: these are all event streams, and TGNs are what people deploy on them. They also happen to be architectures nobody has opened up.</p>
+
+<p>That gap is the project's entire reason for existing. The claim in the title — "first systematic interpretability study of a Temporal Graph Network" — is a claim about an empty space in the literature, not about inventing a new method. The methods are borrowed from transformer interpretability (activation patching, ablation, causal mediation). The contribution is porting them to a recurrent, per-node-memory architecture, discovering that the port is harder than it looks, and reporting what breaks.</p>
+
+<div class="deck">
+  <div class="card"><div class="k">Model</div><div class="v">121,546</div><div class="d">parameters — small enough to intervene on exhaustively, large enough to learn a non-trivial algorithm</div></div>
+  <div class="card"><div class="k">Intervention points</div><div class="v">19</div><div class="d">hand-placed hooks, each one a place the forward pass can be surgically altered</div></div>
+  <div class="card"><div class="k">Experiments</div><div class="v">17</div><div class="d">12 static modules + 5 dynamic, in the runner's registry; plus exp9, run post-hoc once ≥2 seeds exist</div></div>
+  <div class="card"><div class="k">Regression tests</div><div class="v">22</div><div class="d">each one pinning a real defect that was found and fixed in this codebase</div></div>
+</div>
+
+<h3>The question behind the question</h3>
+
+<p>Every interpretability result has the form "intervening <em>here</em> changes the output by <em>this much</em>." That sentence is only meaningful if two things are true:</p>
+
+<ol>
+  <li>The intervention actually did what you think it did (it reached the computation you aimed at).</li>
+  <li>The effect size is measured against a control that isolates the <em>specific</em> thing you care about, not just "something was perturbed."</li>
+</ol>
+
+<p>Both assumptions fail silently and routinely. A large chunk of this project is machinery built to catch those failures — and the most interesting results are the ones where the machinery caught the <em>author's own</em> earlier conclusions being wrong. That stance, treating instrument validity as a result rather than a footnote, is discussed in <a href="#instruments">§9</a>, and is arguably the real deliverable.</p>
+</section>
+
+
+<section>
+<h2 id="tgn-primer"><span class="num">02</span>What a Temporal Graph Network actually is</h2>
+
+<p class="lede">Before anything can be reverse-engineered, it helps to be precise about what is being reverse-engineered. This section builds the architecture from first principles, and names the alternatives that were not chosen.</p>
+
+<h3>Two kinds of dynamic graph</h3>
+
+<p>The literature splits graphs that change over time into two families, and the split determines which architectures are even applicable:</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Family</th><th>Representation</th><th>Typical approach</th><th>What it loses</th></tr></thead>
+<tbody>
+<tr><td><strong>DTDG</strong><br>discrete-time dynamic graph</td><td>a sequence of static snapshots \(G_1, G_2, \ldots, G_T\), each a full adjacency matrix</td><td>run a static GNN per snapshot, then an RNN over the snapshot embeddings</td><td>everything inside a snapshot interval — ordering, and the exact gaps between events</td></tr>
+<tr><td><strong>CTDG</strong><br>continuous-time dynamic graph</td><td>a stream of timestamped events \((u, v, t, \mathbf{e})\)</td><td>maintain per-node state, updated as each event arrives</td><td>nothing by construction; the cost is that you cannot batch over time</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>This task is CTDG by necessity. The label depends on whether \(t_2 - t_1 < \Delta\) where \(\Delta = 5.0\) on a timeline of length 100 — a distinction a snapshot model would quantise away unless its snapshot interval were finer than \(\Delta\), at which point it is a CTDG model with extra steps.</p>
+
+<h3>The four modules</h3>
+
+<p>Rossi et&nbsp;al. (2020) factored the CTDG problem into modules that most subsequent work has kept. In the order an event flows through them:</p>
+
+<ol>
+<li><strong>Memory.</strong> Every node \(v\) carries a state vector \(s_v \in \mathbb{R}^{d}\), initialised to zero and updated whenever an event touches \(v\). This is the node's compressed history. It is <em>not</em> a learned embedding in the <code>nn.Embedding</code> sense — there is no parameter per node; the parameters are in the update function, and the state itself is activation, not weight. That distinction is what makes per-node memory interpretable at all: you can ask what a <em>particular sample's</em> node-\(B\) memory contains, which is meaningless for a static embedding table.</li>
+<li><strong>Message function.</strong> When event \((u, v, t, \mathbf{e})\) arrives, compute a message for each endpoint from both endpoints' current memories, the elapsed time, and the edge features.</li>
+<li><strong>Message aggregator.</strong> If a node is touched several times in one batch, combine the messages (mean, or keep the last).</li>
+<li><strong>Embedding.</strong> Produce the final node representation used downstream, typically by graph attention over temporal neighbours.</li>
+</ol>
+
+<figure>
+<svg viewBox="0 0 860 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram of the TGN event-processing loop">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <polygon points="0 0, 9 3.5, 0 7" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g fill="none" stroke="currentColor" stroke-width="1.4" color="var(--ink-faint)">
+    <rect x="18" y="112" width="104" height="58" rx="7"/>
+    <rect x="172" y="112" width="104" height="58" rx="7"/>
+    <rect x="326" y="112" width="104" height="58" rx="7"/>
+    <rect x="480" y="112" width="104" height="58" rx="7"/>
+    <rect x="634" y="112" width="112" height="58" rx="7"/>
+    <path d="M122 141 H168" marker-end="url(#ar)"/>
+    <path d="M276 141 H322" marker-end="url(#ar)"/>
+    <path d="M430 141 H476" marker-end="url(#ar)"/>
+    <path d="M584 141 H630" marker-end="url(#ar)"/>
+    <path d="M532 112 V62 H 70 V 108" marker-end="url(#ar)" stroke-dasharray="4 3"/>
+  </g>
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="12.5" fill="var(--ink)" text-anchor="middle">
+    <text x="70" y="137" font-weight="600">READ</text>
+    <text x="224" y="137" font-weight="600">TIME ENC</text>
+    <text x="378" y="137" font-weight="600">MESSAGE</text>
+    <text x="532" y="137" font-weight="600">WRITE (GRU)</text>
+    <text x="690" y="137" font-weight="600">READOUT</text>
+  </g>
+  <g font-family="ui-monospace,Menlo,monospace" font-size="10.5" fill="var(--ink-faint)" text-anchor="middle">
+    <text x="70" y="156">s_src, s_dst</text>
+    <text x="224" y="156">Φ(Δt)</text>
+    <text x="378" y="156">MLP → m</text>
+    <text x="532" y="156">s' = f(m, s)</text>
+    <text x="690" y="156">[A‖B‖C] → logit</text>
+    <text x="300" y="55">memory bank, carried to the next event</text>
+  </g>
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="10.5" fill="var(--accent)" text-anchor="middle">
+    <text x="70" y="196">2 hooks</text>
+    <text x="224" y="196">2 hooks</text>
+    <text x="378" y="196">2 hooks</text>
+    <text x="532" y="196">8 hooks</text>
+    <text x="690" y="196">5 hooks</text>
+  </g>
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="11" fill="var(--ink-faint)" text-anchor="middle">
+    <text x="430" y="236">one pass of this loop per event index, vectorised across all samples in the batch</text>
+    <text x="430" y="256">~30–50 iterations · each sample holds a private memory bank, so ordering stays exact</text>
+  </g>
+</svg>
+<figcaption>The five stages of one event step and where the 19 intervention points sit. The dashed line is the recurrence: the memory written at step <em>i</em> is the memory read at step <em>i+1</em>.</figcaption>
+</figure>
+
+<h3>The architectures that were not used, and why</h3>
+
+<div class="tablewrap">
+<table>
+<caption>CTDG architectures, and the reason each was or was not the right base for this study</caption>
+<thead><tr><th>Architecture</th><th>Core idea</th><th>Why not this one</th></tr></thead>
+<tbody>
+<tr><td><strong>TGN</strong> (Rossi 2020)</td><td>per-node memory + message passing + temporal attention</td><td><strong>Chosen.</strong> Memory is explicit state that can be read, written and patched per sample — the precondition for every experiment here.</td></tr>
+<tr><td>JODIE (Kumar 2019)</td><td>coupled RNNs for users and items, with a projection operator that ages an embedding between events</td><td>bipartite by design; the \(A\to B\to C\) task is not user–item, and the projection operator entangles "what is remembered" with "how stale it is"</td></tr>
+<tr><td>DyRep (Trivedi 2019)</td><td>temporal point process; events are draws from an intensity function</td><td>the interesting quantity becomes the intensity, not a node state — a different and less patchable object</td></tr>
+<tr><td>TGAT (Xu 2020)</td><td>self-attention over temporal neighbours, with a functional time encoding; <em>stateless</em></td><td>no memory at all — it recomputes from the neighbourhood each time. A perfectly good model, but it removes the exact component this study exists to examine.</td></tr>
+<tr><td>CAW (Wang 2021)</td><td>causal anonymous walks; identity is replaced by walk-position statistics</td><td>deliberately anonymises node identity, which is precisely the signal the <code>source_shuffle</code> corruption tests</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The selection logic is worth stating plainly, because it generalises: <strong>when the goal is to understand a mechanism, pick the architecture where the mechanism is a first-class object.</strong> TGAT would likely score similarly on this task, and would have been easier to train. It was the wrong choice because a study of memory circuits needs a memory.</p>
+
+<h3>One deliberate simplification</h3>
+
+<p>The embedding module — module 4 above, normally a temporal graph-attention layer — is replaced with the <strong>identity function</strong>. The source states the reason directly:</p>
+
+<pre><code>class GraphEmbedding(nn.Module):
+    """For the motif completion task, we use the MEMORY STATES directly
+    (identity embedding) since the task tests memory-based temporal reasoning.
+    Adding a graph attention layer here would complicate MI analysis
+    without improving task performance."""</code></pre>
+
+<p>This is a real trade-off and should be read as one. An attention layer would add a second place where composition could occur — a node could aggregate its neighbours' memories at readout time, independently of what its own memory accumulated. Removing it means the study's central finding (<a href="#composition">§7</a>) is a statement about <em>memory</em> composition specifically, not about every route by which information could combine in a full TGN. The cost of including it would have been an extra, confounded pathway in every patching result. The honest framing: this is the simplest architecture that still exhibits the phenomenon of interest, and the finding should be re-tested with attention enabled before being generalised.</p>
+</section>
+
+
+<section>
+<h2 id="task"><span class="num">03</span>The task: temporal motif completion</h2>
+
+<p>You cannot reverse-engineer an algorithm unless you know what algorithm would be correct. So the first design decision was to build a synthetic task with a <em>known</em> ground-truth rule, rather than take a real dataset where the right answer is unknown.</p>
+
+<h3>The rule</h3>
+
+<p>Each sample is a stream of timestamped directed edges over 50 nodes. Three nodes are designated as candidates: \(A\), \(B\), \(C\). The label is:</p>
+
+<div class="eq">
+\[
+y = 1 \iff \exists\, t_1, t_2 \;:\; (A \to B \text{ at } t_1) \;\wedge\; (B \to C \text{ at } t_2) \;\wedge\; 0 < t_2 - t_1 < \Delta
+\]
+</div>
+
+<p>with \(\Delta = 5.0\) on a timeline running from 0 to 100. In words: <em>did influence flow from A to C, through B, fast enough to count?</em></p>
+
+<p>This is the smallest non-trivial temporal reasoning task. To answer it, the model must simultaneously track three things that a static graph model cannot: <strong>who</strong> (node identity must match — the \(B\) in \(A\to B\) is the same \(B\) in \(B \to C\)), <strong>when</strong> (ordering: \(t_2\) after \(t_1\)), and <strong>how long</strong> (the gap is under \(\Delta\)). Break any one of the three and the label flips.</p>
+
+<div class="note plain">
+<span class="tag">Why synthetic, and what it costs</span>
+<p>The alternative was a real CTDG benchmark — Wikipedia edit streams, Reddit interactions, the Elliptic bitcoin graph. Each has the fatal property that <strong>nobody knows the correct algorithm</strong>, so "the model computes X" cannot be checked against "the model should compute X."</p>
+<p>Synthetic data buys three things that make causal claims possible: a ground-truth rule; <em>minimal-pair counterfactuals</em> (a negative is a positive with exactly one edge changed, so the positive/negative contrast isolates one variable); and full control over confounds. It costs external validity — see <a href="#limits">§12</a> — and it transfers the entire burden of rigour onto the generator, which is why <a href="#antishortcut">the next subsection</a> is as long as it is.</p>
+</div>
+
+<h3>Five ways to be wrong</h3>
+
+<p>Negative samples are not drawn independently. Each one is a positive sample with <em>exactly one</em> minimal corruption applied, which makes the positive/negative contrast a clean counterfactual rather than a comparison of two unrelated graphs. The generator implements five strategies:</p>
+
+<div class="tablewrap">
+<table>
+<caption>Corruption strategies — <code>temporal_motif_generator.py</code>, <code>_generate_negative_sample()</code></caption>
+<thead><tr><th>Strategy</th><th>What changes</th><th>Which of who/when/how-long it breaks</th></tr></thead>
+<tbody>
+<tr><td><code>topology_break</code></td><td>\(B\to C\) becomes \(D \to C\), \(D \neq B\)</td><td>Who — the shared node no longer matches</td></tr>
+<tr><td><code>source_shuffle</code></td><td>\(A\to B\) becomes \(X \to B\), \(X \neq A\)</td><td>Who — the chain starts from the wrong place</td></tr>
+<tr><td><code>timing_break</code></td><td>\(t_2\) pushed to \(t_1 + \Delta + \varepsilon\)</td><td>How long — the window is missed</td></tr>
+<tr><td><code>temporal_misordering</code></td><td>\(t_1\) and \(t_2\) swapped</td><td>When — the arrow of causation reverses</td></tr>
+<tr><td><code>edge_deletion</code></td><td>completing edge replaced by random noise edge</td><td>The chain simply never completes</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The <code>source_shuffle</code> case is the one the whole study turns on, for a reason explained in <a href="#composition">§7</a>: it is the only corruption about which the two competing hypotheses about the model's internal algorithm make <em>different</em> predictions.</p>
+
+<h3 id="antishortcut">The anti-shortcut arms race</h3>
+
+<p>A synthetic task is only as good as its defences against being solved the lazy way. Each sample is wrapped in noise edges, distractors and partial motifs — but the genuinely instructive part is what the author found <em>after</em> those defences were in place.</p>
+
+<div class="note flag">
+<span class="tag">The leak that six audits missed</span>
+<p>Three of the five corruptions (<code>topology_break</code>, <code>source_shuffle</code>, <code>edge_deletion</code>) replace an edge <em>inside</em> the candidate triple with one pointing outside it. An earlier degree-parity safeguard restored each candidate node's total degree by adding an edge to a non-candidate neighbour — so total degree was preserved exactly, and a degree-based audit saw nothing.</p>
+<p>But the <em>count of edges among \(\{A,B,C\}\)</em> was now systematically one lower in those negatives. The single rule <code>internal_count &gt;= 4 → positive</code> reached <strong>78.2% balanced accuracy</strong> on the real generator. A model scoring 85% could have been doing almost nothing else.</p>
+<p>The fix, <code>_enforce_structural_parity()</code>, pads every sample — positive or negative — up to a fixed canonical profile <code>(internal_edges=4, deg_A=3, deg_B=4, deg_C=3)</code> using only the four candidate-internal edge orientations that <em>cannot</em> participate in an \(A\to B\to C\) chain: \(A\!\to\!C\), \(C\!\to\!A\), \(B\!\to\!A\), \(C\!\to\!B\). Those are inert ballast regardless of their timestamps. <code>tests/test_generator_parity.py</code> now asserts that neither statistic carries label information.</p>
+</div>
+
+<p>The padding routine is a small constraint-satisfaction problem, and reading it shows why the four safe orientations matter. The deficit in internal edge count must be closed <em>without</em> overshooting any single candidate's degree, so the code searches over how many of each safe orientation to add:</p>
+
+<pre><code>for n_ac in range(need_int + 1):
+    for n_ba in range(need_int + 1 - n_ac):
+        n_cb = need_int - n_ac - n_ba
+        if (dA + n_ac + n_ba &lt;= t_A and dB + n_ba + n_cb &lt;= t_B
+                and dC + n_ac + n_cb &lt;= t_C):
+            chosen = (n_ac, n_ba, n_cb)</code></pre>
+
+<p>Each orientation contributes degree to a different pair — \((A,C)\) and \((C,A)\) to \(A\) and \(C\), \((B,A)\) to \(A\) and \(B\), \((C,B)\) to \(B\) and \(C\) — so the three counts are exactly the degrees of freedom needed to hit a three-way degree target. Remaining degree shortfalls are topped up with edges to <em>non</em>-candidate nodes, which add degree without touching the internal count. A final assertion verifies the profile was reached, and the function raises rather than silently producing an off-profile sample.</p>
+
+<p>The lesson generalises past this codebase. The project ran a six-baseline shortcut audit (<code>scripts/audit_model.py</code>) — feature-only, degree-only, event-count, timestamp-only, node-identity, candidate-timing — training trivial MLPs to predict the TGN's own outputs. <strong>None of the six could see this leak</strong>, because the leak lived in a statistic none of them computed. A clean audit is evidence of absence only for the shortcuts you thought to test.</p>
+
+<p>Two further defences are worth naming because they are the kind of thing that silently ruins synthetic benchmarks:</p>
+<ul>
+<li><strong>Event-count parity.</strong> <code>_pad_events_to_target()</code> pads every sample to an identical global event count, so graph size carries no signal. It raises rather than truncates if a sample overshoots — a loud failure instead of a quiet bias.</li>
+<li><strong>Post-generation validation.</strong> Positives are regenerated unless <em>exactly one</em> \(A\to B\to C\) completion exists; negatives are regenerated from scratch (not patched) if noise accidentally completes the chain. Patching would preserve the event count but destroy the corruption's semantics.</li>
+</ul>
+
+<p>There is also a quiet numerical guard worth noticing. Timestamps are drawn from a continuous uniform, but float collisions and <code>max_time</code> clipping can produce exact ties, and the model consumes events in sorted order. The generator jitters duplicates by \(10^{-5}\) <em>without re-sorting</em>, and the comment explains why: re-sorting the time array independently would misalign it from the already-sorted <code>src</code>, <code>dst</code> and <code>msg</code> arrays. An assertion then confirms uniqueness. This is a one-line bug that would have produced a subtly wrong dataset with no error message.</p>
+</section>
+
+
+<section>
+<h2 id="architecture"><span class="num">04</span>The model, and why every piece was hand-rolled</h2>
+
+<p>The TGN follows the Rossi et&nbsp;al. (2020) design: each node carries a memory vector; each event computes messages for both endpoints; those messages update the endpoints' memories through a GRU; a classifier reads the final memories of \(A\), \(B\), \(C\).</p>
+
+<h3>Configuration</h3>
+
+<div class="tablewrap">
+<table>
+<caption><code>temporal_gnn_mi/config.py</code></caption>
+<thead><tr><th>Group</th><th>Setting</th><th class="num">Value</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td rowspan="5">Model</td><td><code>memory_dim</code></td><td class="num">128</td><td>per-node state width; the thing everything else is about</td></tr>
+<tr><td><code>message_dim</code></td><td class="num">32</td><td>GRU input width</td></tr>
+<tr><td><code>time_dim</code></td><td class="num">16</td><td>8 learnable frequencies × {cos, sin}</td></tr>
+<tr><td><code>embedding_dim</code></td><td class="num">64</td><td>classifier hidden width</td></tr>
+<tr><td><code>dropout</code></td><td class="num">0.108</td><td>an odd value because it came out of an Optuna search</td></tr>
+<tr><td rowspan="3">Data</td><td><code>num_nodes</code></td><td class="num">50</td><td></td></tr>
+<tr><td><code>time_window_delta</code></td><td class="num">5.0</td><td>the \(\Delta\) the model must learn</td></tr>
+<tr><td><code>noise_multiplier</code></td><td class="num">4</td><td>→ 8 noise edges, plus 3 distractors and 2 partial motifs</td></tr>
+<tr><td rowspan="3">Training</td><td><code>lr</code></td><td class="num">0.002</td><td>Adam, weight decay 1e-3, grad clip 1.0</td></tr>
+<tr><td><code>epochs</code> / <code>patience</code></td><td class="num">200 / 20</td><td>checkpoint every 5 epochs — these become the dynamics experiments</td></tr>
+<tr><td><code>completion_loss_weight</code></td><td class="num">0.5</td><td>weight on the auxiliary readout, below</td></tr>
+</tbody>
+</table>
+</div>
+
+<h4>Where the 121,546 parameters live</h4>
+
+<p>Worth doing arithmetic on, because it shows what the model is mostly made of:</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Component</th><th>Shape arithmetic</th><th class="num">Params</th><th class="num">Share</th></tr></thead>
+<tbody>
+<tr><td>GRU memory updater</td><td>\(3 \times \big((32{+}128)\times 128 + 128\big)\)</td><td class="num">61,824</td><td class="num">50.9%</td></tr>
+<tr><td>Final-state classifier</td><td>\((384{\times}64 + 64) + (64 + 1)\)</td><td class="num">24,705</td><td class="num">20.3%</td></tr>
+<tr><td>Completion-time classifier</td><td>same architecture, separate weights</td><td class="num">24,705</td><td class="num">20.3%</td></tr>
+<tr><td>Message function MLP</td><td>\((288{\times}32{+}32) + (32{\times}32{+}32)\)</td><td class="num">10,304</td><td class="num">8.5%</td></tr>
+<tr><td>Time encoder</td><td>8 learnable frequencies</td><td class="num">8</td><td class="num">0.0%</td></tr>
+<tr><td><strong>Total</strong></td><td></td><td class="num"><strong>121,546</strong></td><td class="num">100%</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Half the model is the GRU. That is the right shape for the task — the hard part is maintaining state across an event stream, not computing any individual message — and it is why the GRU gates get three experiments to themselves.</p>
+
+<h3>The GRU, from first principles</h3>
+
+<p>A Gated Recurrent Unit maintains a hidden state and decides, per dimension and per step, how much of it to overwrite. The motivation is the vanishing-gradient problem: in a plain RNN, \(s_t = \tanh(W[s_{t-1}, x_t])\), the gradient through \(k\) steps carries a factor \(\prod \partial s_{i}/\partial s_{i-1}\), which shrinks geometrically and destroys any long-range credit assignment. Gating fixes this by giving the state an <em>additive</em> path.</p>
+
+<p>The four quantities, in the order the code computes them:</p>
+
+<div class="eq">
+\[
+\begin{aligned}
+z_t &= \sigma\!\big([\,m \,\|\, s\,]\,W_z + b_z\big) &&\textit{update gate — how much to overwrite}\\[2pt]
+r_t &= \sigma\!\big([\,m \,\|\, s\,]\,W_r + b_r\big) &&\textit{reset gate — how much history to forget}\\[2pt]
+\tilde{h} &= \tanh\!\big([\,m \,\|\, r_t \odot s\,]\,W_h + b_h\big) &&\textit{candidate state — what would be written}\\[2pt]
+s' &= (1 - z_t)\odot s \;+\; z_t \odot \tilde{h} &&\textit{the write}
+\end{aligned}
+\]
+</div>
+
+<p>Reading equation (4) carefully matters for everything downstream. When \(z \to 0\), \(s' \to s\): the state passes through untouched and \(\partial s'/\partial s \to 1\), which is the additive gradient path. When \(z \to 1\), \(s' \to \tilde h\): the old state is discarded entirely. The two gates do different jobs — \(r\) controls what history enters the <em>candidate</em>, \(z\) controls how much of the candidate reaches the <em>state</em> — and conflating them is a common source of confusion. <a href="#gates">§8</a> turns on exactly this distinction.</p>
+
+<div class="note">
+<span class="tag">Design decision: hand-rolled, not <code>nn.GRUCell</code></span>
+<p>PyTorch ships <code>nn.GRUCell</code>, and it is faster: a fused CUDA kernel computing all three gates in one batched matmul with no Python-level intermediates. This codebase does not use it, and that is the single most consequential engineering decision in the project.</p>
+<p><strong>The problem:</strong> a fused kernel is opaque. You can read its input and its output, and nothing in between. \(z_t\), \(r_t\) and \(\tilde h\) never materialise as tensors you can hook.</p>
+<p><strong>Alternatives considered and rejected:</strong> (i) <em>Forward hooks on the module</em> — these fire on the module's inputs and outputs only, so they see exactly what you could already see. (ii) <em>Finite-difference probing</em> — perturb the input, observe the output, infer the gates; this is indirect, noisy, and cannot <em>write</em> a gate value, which the causal arms require. (iii) <em>A custom autograd Function wrapping the fused kernel</em> — preserves speed but reintroduces the same opacity inside the kernel. (iv) <em>Monkey-patching ATen internals</em> — version-fragile and effectively unreadable.</p>
+<p><strong>The cost paid:</strong> a Python-level GRU over ~40 sequential event steps is meaningfully slower than the fused path, and the model is small enough that this is mostly kernel-launch overhead rather than arithmetic. For a 121K-parameter model on a T4, that is an acceptable trade. For a production-scale model it would not be, which is a real constraint on scaling this methodology.</p>
+</div>
+
+<div class="note plain">
+<span class="tag">An autograd detail that matters</span>
+<p>The memory bank is written back with a <em>clone-scatter</em>, not an in-place indexed assignment:</p>
+<pre><code>idx = node_ids.unsqueeze(-1).expand(B, D).unsqueeze(1)
+self.memory = self.memory.clone().scatter_(1, idx, memory_write.unsqueeze(1))</code></pre>
+<p>The comment in the source explains why: <code>tensor[idx] = val</code> silently breaks the gradient chain on CUDA for sequential read-write memory patterns in some PyTorch 2.x versions. Backpropagation-through-time across ~40 event steps would have failed quietly — the model would train, badly, and nobody would know why. Clone-scatter creates explicit autograd nodes instead.</p>
+<p>The cost is memory: cloning a \((B, 51, 128)\) tensor at every one of ~80 memory writes per forward pass means the autograd graph holds ~80 copies. At batch 32 that is roughly 67 MB of activations for the memory bank alone — affordable here, and the reason <code>batch_size</code> is capped at 32 in the pipeline scripts.</p>
+</div>
+
+<h3>Time encoding, and the theory under it</h3>
+
+<p>Elapsed time \(\Delta t\) is projected through learnable frequencies:</p>
+
+<div class="eq">
+\[
+\Phi(\Delta t) = \big[\cos(\omega_1 \Delta t), \ldots, \cos(\omega_8 \Delta t),\; \sin(\omega_1 \Delta t), \ldots, \sin(\omega_8 \Delta t)\big] \in \mathbb{R}^{16}
+\]
+</div>
+
+<p>with \(\omega \in \mathbb{R}^{1\times 8}\) trained by gradient descent. This is a Time2Vec / TGAT-style functional encoding, and its justification is <strong>Bochner's theorem</strong>: a continuous shift-invariant kernel \(k(t_1, t_2) = \psi(t_1 - t_2)\) on \(\mathbb{R}\) is positive-definite if and only if it is the Fourier transform of a non-negative measure. Sampling frequencies from that measure gives a finite random-feature map whose inner product approximates the kernel:</p>
+
+<div class="eq">
+\[
+\psi(\Delta t) \;\approx\; \frac{1}{d}\,\Phi(\Delta t)^{\!\top}\Phi(0)
+\]
+</div>
+
+<p>In plain terms: a sinusoidal basis with learned frequencies can represent <em>any</em> reasonable notion of "these two times are close," and gradient descent picks which notion. The alternative encodings each lose something:</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Encoding</th><th>Problem for this task</th></tr></thead>
+<tbody>
+<tr><td>Raw scalar \(\Delta t\)</td><td>a single unbounded feature; the downstream MLP must learn a sharp threshold at 5.0 from a linear input, which is possible but needs capacity the model would rather spend elsewhere</td></tr>
+<tr><td>Fixed sinusoids (Transformer-style)</td><td>frequencies are a geometric series chosen for sequence <em>positions</em>, not for a task with a specific physical timescale; nothing ties them to \(\Delta = 5\)</td></tr>
+<tr><td>Learned bucket embeddings</td><td>discretises time, which is exactly what a CTDG model exists to avoid; also puts a hard boundary wherever the bucket edges fall</td></tr>
+<tr><td><strong>Learnable sinusoids</strong></td><td><strong>Chosen.</strong> Continuous, differentiable, and the learned \(\omega\) is <em>directly interpretable</em> — see below.</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>That last property is what makes experiment T5 possible. With eight parameters, the encoder is the smallest thing in the model and the most directly inspectable: T5 reads \(\omega\) straight out of each checkpoint's state dict with no forward passes at all, and asks whether any learned frequency has implied period \(2\pi/\omega \approx 5.0\). It is the cheapest experiment in the project and potentially one of the most informative.</p>
+
+<h3>Two readouts, and the reason for the second</h3>
+
+<p>The primary classifier reads the memories of \(A\), \(B\), \(C\) <strong>after all events have been processed</strong>. This is the standard TGN design, and it has a problem that the project discovered experimentally: by the end of the sequence, later events touching \(B\) have overwritten whatever \(B\) knew at the moment the motif completed.</p>
+
+<p>So a second, separately-parameterised classifier reads the same three memories <em>at the decision step</em> — the event index where \(B \to C\) occurs. For negatives, where no such event exists, the decision step is defined as the last event with \(t \le t_2^{\text{counterfactual}}\), so both classes are evaluated at the same temporal boundary rather than comparing a motif-time snapshot against an arbitrary one. The two are trained jointly:</p>
+
+<div class="eq">
+\[
+\mathcal{L} = \mathrm{BCE}\big(\text{logit}_{\text{final}},\, \tilde y\big) \;+\; 0.5 \cdot \mathrm{BCE}\big(\text{logit}_{\text{completion}},\, \tilde y\big), \qquad \tilde y = 0.9y + 0.05
+\]
+</div>
+
+<div class="note">
+<span class="tag">Design decision: label smoothing, for an interpretability-specific reason</span>
+<p>The \(\tilde y = 0.9y + 0.05\) is label smoothing, and the usual justifications — calibration, regularisation, reduced overconfidence — are not the reason it is here.</p>
+<p>The reason is <strong>dynamic range for the instruments</strong>. <code>BCEWithLogitsLoss</code> against hard 0/1 targets has no finite minimiser: the gradient keeps pushing \(|{\text{logit}}|\) upward, and a well-fit model ends up at logits of ±15 or beyond, where \(\sigma\) is flat to machine precision. At that point <em>every</em> intervention moves the probability by approximately nothing, causal effects are unmeasurable, and the whole patching apparatus returns zeros that look like findings.</p>
+<p>Smoothing to \([0.05, 0.95]\) puts the optimum at a finite logit — \(\sigma^{-1}(0.95) \approx 2.94\) — keeping the model on the responsive part of the curve. <strong>This is a case of a training choice made to serve measurement rather than accuracy</strong>, and it is worth noticing because it has a cost: the reported accuracies are of a deliberately less confident model than one would ship.</p>
+</div>
+
+<p>The optimiser is Adam with <code>weight_decay=1e-3</code> and gradient clipping at norm 1.0. The clipping is not optional here: backpropagation through ~40 sequential GRU steps is exactly the regime where a single bad batch produces a gradient spike that destroys the memory weights, and because the memory is recurrent, one such step corrupts every subsequent forward pass rather than just the current one.</p>
+
+<h3>The baseline that could have ended the project</h3>
+
+<p><code>models/flat_gru.py</code> is a deliberate attempt at self-refutation. It is a standard <code>nn.GRU</code> over the flat event sequence with learnable node embeddings and <em>no per-node memory at all</em>. Its docstring states the stakes plainly: if Flat-GRU matches the TGN, then per-node memory is unnecessary and every finding about memory circuits is uninteresting.</p>
+
+<p>The comparison is constructed to be fair rather than favourable. Flat-GRU gets the same time encoding, the same edge features, the same classifier head shape, and <em>also</em> gets the candidate nodes' learned embeddings concatenated at readout — so it is not handicapped on identifying which three nodes matter. It uses <code>pack_padded_sequence</code> so the recurrence genuinely stops at each sequence's real length rather than running over padding. What it lacks is the one thing under test: state indexed <em>by node</em> rather than by position in the stream.</p>
+
+<p>Running the baseline and reporting it is the difference between a study and a demonstration.</p>
+</section>
+
+
+<section>
+<h2 id="mi-toolkit"><span class="num">05</span>The interpretability toolkit, from first principles</h2>
+
+<p class="lede">Every method used here comes from the transformer-interpretability literature. Since the project's contribution is porting them, it is worth stating precisely what each one is, what it assumes, and how it fails.</p>
+
+<h3>Why correlation is not enough</h3>
+
+<p>The oldest interpretability method is the <strong>probe</strong>: train a small classifier to predict property \(P\) from activation \(a\); if it succeeds, conclude that \(a\) encodes \(P\). The method is cheap and the conclusion is nearly worthless, for a reason that is easy to state and easy to forget.</p>
+
+<p>A probe measures <em>decodability</em>: whether \(P\) is recoverable from \(a\) by some function. It says nothing about whether the <em>model</em> recovers it, or uses it. An activation can carry a feature in a subspace that every downstream weight matrix happens to project away. With enough probe capacity you can decode nearly anything from nearly any wide activation — including properties the model demonstrably does not act on.</p>
+
+<p>This project contains an unusually clean demonstration (<a href="#gates">§8</a>): 126 of 128 gate dimensions separate motif from non-motif updates almost perfectly, and clamping them moves the output <em>less than a random reshuffle of the same numbers</em>. Perfect decodability, zero causal relevance.</p>
+
+<p>The fix is to intervene rather than observe — to move from \(P(\text{output} \mid a)\) to \(P(\text{output} \mid \mathrm{do}(a := a'))\), in Pearl's notation. Setting an activation and watching what happens downstream is a genuine causal query, because it cuts the activation off from everything that would normally determine it.</p>
+
+<h3>Activation patching</h3>
+
+<p>The core technique, also called causal tracing or interchange intervention. The recipe:</p>
+
+<ol>
+<li>Run the model on a <strong>clean</strong> input; cache activations.</li>
+<li>Run it on a <strong>corrupted</strong> input that flips the output; record the damage.</li>
+<li>Run the corrupted input again, but <em>overwrite</em> one activation with its clean-run value.</li>
+<li>Measure how much of the damage is undone.</li>
+</ol>
+
+<div class="eq">
+\[
+\text{recovery} \;=\; \frac{\ell_{\text{patched}} - \ell_{\text{corrupt}}}{\ell_{\text{clean}} - \ell_{\text{corrupt}}}
+\]
+</div>
+
+<p>Recovery near 1 means that activation carried essentially all the information the corruption destroyed; near 0 means it carried none. In causal-mediation terms this is an <em>indirect effect</em>: how much of the treatment's influence on the outcome is routed through this mediator.</p>
+
+<p>Three assumptions are doing work, and each is a place the method breaks:</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Assumption</th><th>How it fails</th><th>What this project does about it</th></tr></thead>
+<tbody>
+<tr><td>The patch reaches the computation you aimed at</td><td>you patch a value that is recomputed or ignored downstream</td><td>exactly the <code>memory_pre</code> vs <code>memory_state</code> defect in <a href="#instrumentation">§6</a>; now pinned by a regression test</td></tr>
+<tr><td>Clean and corrupted runs are otherwise comparable</td><td>drawing two independent samples confounds the corruption with every other difference between them</td><td>minimal-pair counterfactuals: the corruption is applied to the positive's own event tensor, holding noise, distractors and padding fixed</td></tr>
+<tr><td>The measured effect is specific to this activation's <em>content</em></td><td>injecting any vector of the right shape perturbs the model somewhat</td><td>the mismatched arm — inject <em>another</em> sample's clean value, via a derangement</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Ablation, and the choice of corruption value</h3>
+
+<p>Ablation is patching with a value that is not from another run. What you replace with determines what you have measured:</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Variant</th><th>Replace with</th><th>Interpretation and hazard</th></tr></thead>
+<tbody>
+<tr><td>Zero ablation</td><td>\(\mathbf{0}\)</td><td>"delete this." Hazard: zero is not a neutral value — it is a specific point that may be far outside the activation's normal range, so the effect size scales with the activation's norm rather than its importance.</td></tr>
+<tr><td>Mean ablation</td><td>population mean from a pilot set</td><td>"replace with an uninformative value of the right magnitude." Removes the scale confound; the residual hazard is that the mean may itself be an atypical point for a multimodal distribution.</td></tr>
+<tr><td>Resample ablation</td><td>the value from a random other input</td><td>stays on the data manifold; adds variance, and conflates deletion with substitution.</td></tr>
+<tr><td>Permutation control</td><td>the same values, dimensions shuffled</td><td>a <em>matched null</em>: identical magnitude and marginal distribution, destroyed structure. The workhorse control here — and §9 shows it can itself be invalid.</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Experiment 1 builds the "circuit fingerprint" — a heatmap of causal importance over every (event step × intervention point) pair — using <strong>mean-ablation</strong>, and Experiment 6 exists solely to justify that choice. The argument is the scale confound above: zeroing a bounded time encoding (values in \([-1,1]\)) is a small perturbation, while zeroing an unbounded memory vector is a large one, so zero-ablation ranks components by activation norm as much as by function. Exp 6 tests this directly — per-cell Pearson correlation between the two maps, whether zero-ablation disproportionately affects high-scale activations, and the signal-to-noise ratio of each method, defined as the variance of causal effects over their mean square.</p>
+
+<h3>The statistics, and why each one is here</h3>
+
+<h4>Benjamini–Hochberg FDR correction</h4>
+
+<p>Testing 128 memory dimensions at \(\alpha = 0.05\) yields ~6.4 false positives by construction. Bonferroni (\(\alpha/m\)) controls the probability of <em>any</em> false positive, which is far too strict when you expect many true effects and are characterising a population of dimensions rather than confirming one hypothesis. BH instead controls the expected <em>proportion</em> of false discoveries: sort the \(p\)-values ascending, find the largest \(k\) with \(p_{(k)} \le \frac{k}{m}\alpha\), reject everything up to it. Much higher power, and the right error rate for "which dimensions differ."</p>
+
+<h4>Bootstrap confidence intervals</h4>
+
+<p>The recovery ratio is a ratio of two correlated sums, and no closed-form standard error exists for it. The bootstrap resamples <em>samples</em> (not the numerator and denominator independently), recomputes the ratio 10,000 times, and takes the 2.5th and 97.5th percentiles. Resampling samples is what preserves the pairing: each draw keeps a sample's clean, corrupt and patched logits together, so the correlation between them is carried into the interval rather than assumed away.</p>
+
+<h4>Paired tests and permutation nulls</h4>
+
+<p>Every arm is run on the <em>same</em> samples, so comparisons are paired — a paired \(t\)-test on the per-sample differences removes between-sample variance, which here is much larger than the effect. Where the null is not analytically tractable, the project uses permutation: construct the null by shuffling the labels or the dimensions, and read the \(p\)-value off the resulting distribution. The hazard, which §9 documents, is that a shuffle can be <em>too</em> destructive to serve as a null.</p>
+</section>
+
+
+<section>
+<h2 id="instrumentation"><span class="num">06</span>The intervention API</h2>
+
+<p>The nineteen intervention points are not hooks in PyTorch's sense. They are explicit branches in the forward pass, keyed by a tuple and holding a callable:</p>
+
+<pre><code>logits = model(batch, interventions={
+    (m2, 'memory_state_src'): lambda x: clean_mem_B.expand_as(x),
+    ('readout', 'mem_A'):     lambda x: clean_mem_A.expand_as(x),
+})</code></pre>
+
+<p>Keys are either <code>(event_step_index, point_name)</code> for per-event points or <code>(tag, point_name)</code> for readout and classifier points. When <code>interventions=None</code> — the default, and the case during training — every branch is skipped and the overhead is exactly zero.</p>
+
+<div class="note plain">
+<span class="tag">Design decision: explicit branches over PyTorch hooks</span>
+<p>The idiomatic approach is <code>register_forward_hook</code> / <code>register_forward_pre_hook</code>. It was not used, for four reasons.</p>
+<ol>
+<li><strong>Granularity.</strong> Hooks attach to <em>modules</em>. The quantities of interest — \(z_t\), \(r_t\), \(\tilde h\) — are intermediate tensors inside one module's <code>forward</code>, with no module boundary to attach to. Decomposing the GRU into six submodules purely to create hook points would make the model harder to read than the explicit branches are.</li>
+<li><strong>Time indexing.</strong> The same module is called ~40 times per forward pass, once per event step. A hook fires on every call and must infer which step it is on from mutable external state. The tuple key <code>(i, 'point_name')</code> makes the step an explicit part of the address.</li>
+<li><strong>Composability.</strong> Several points are often patched at once (Experiment 2 sets two; the ceiling arm sets three). A dict of callables composes trivially; a set of registered handles requires bookkeeping to attach and — critically — to <em>remove</em>. A leaked handle silently contaminates every later experiment in the same process.</li>
+<li><strong>Readability of the computation.</strong> With explicit branches, the forward pass documents its own intervention points in source order. With hooks, the places a model can be intervened on are invisible at the point they take effect.</li>
+</ol>
+<p>The cost is 19 <code>if</code> statements in the hot loop. Guarded by <code>if interventions and ...</code>, they are a null-check per point per step when inactive.</p>
+</div>
+
+<div class="tablewrap">
+<table>
+<caption>The 19 points, grouped by stage</caption>
+<thead><tr><th>Stage</th><th>Points</th><th>What replacing it tests</th></tr></thead>
+<tbody>
+<tr><td>Read</td><td><code>memory_pre_src</code>, <code>memory_pre_dst</code></td><td>the memory value handed to the <em>message function</em> — and nothing else</td></tr>
+<tr><td>Time</td><td><code>time_encoding_src</code>, <code>time_encoding_dst</code></td><td>the model's sense of elapsed time; the handle for the Δt sweep</td></tr>
+<tr><td>Message</td><td><code>message_src</code>, <code>message_dst</code></td><td>the information arriving at a node from this event</td></tr>
+<tr><td rowspan="4">Write</td><td><code>memory_state_src/dst</code></td><td>the recurrent state the GRU consumes — <em>what the node remembers</em></td></tr>
+<tr><td><code>gate_z_t_src/dst</code></td><td><em>how much</em> of the candidate gets written</td></tr>
+<tr><td><code>gate_r_t_src/dst</code></td><td>how much history enters the candidate</td></tr>
+<tr><td><code>h_candidate_src/dst</code></td><td><em>what</em> gets written, with the gate untouched</td></tr>
+<tr><td>Readout</td><td><code>('readout','mem_A'/'mem_B'/'mem_C')</code></td><td>exactly what the classifier sees, per candidate node</td></tr>
+<tr><td>Classifier</td><td><code>('classifier','input')</code>, <code>('classifier','hidden')</code></td><td>the concatenated vector and the post-ReLU hidden layer</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>The distinction that invalidated an earlier result</h3>
+
+<p>The first two rows and the <code>memory_state</code> row look like they do the same thing. They do not, and the difference silently produced a wrong answer that survived into a written draft.</p>
+
+<div class="note flag">
+<span class="tag">Defect: patching the wrong side of the memory</span>
+<p><code>memory_pre_src</code> replaces the memory value passed to the <strong>message function</strong>. But <code>TGNMemory.update()</code> re-reads the memory bank <em>independently</em> — it does not receive the value the message function saw. So patching <code>memory_pre_src</code> never sets the node's recurrent state. It perturbs the state only second-hand, through the message, attenuated by the update gate.</p>
+<p>Experiment 2 originally used <code>memory_pre_src</code> to "restore the clean mem_B at the B→C step." It could not do that. A near-zero recovery was the expected output <em>whether or not routing existed</em> — the experiment had no power to distinguish its hypotheses.</p>
+<p><code>memory_state_src</code> is the point that can: it replaces \(s\) as read from the bank, so it feeds equations (1)–(4) directly and is carried into the write-back by \(s' = (1-z)\odot s + z \odot \tilde h\). Measured on an untrained model, the state patch moves the readout <strong>≈33× more</strong> than the message-side patch. <code>tests/test_memory_intervention.py</code> pins the distinction so it cannot regress.</p>
+<p><strong>Why this class of bug is dangerous:</strong> it does not throw. It produces a plausible number — a small recovery ratio — that reads as a scientific finding ("B's memory carries little") when it is in fact a statement about the instrument ("this probe cannot reach B's memory"). Nothing short of a positive control distinguishes the two, which is the argument for ceiling arms in <a href="#instruments">§9</a>.</p>
+</div>
+
+<p>The corrected Experiment 2 sets <em>both</em> points, so the counterfactual is complete: "B's memory at this step was the clean one" in every sense.</p>
+
+<h3>Observational hooks survive intervention</h3>
+
+<p>A subtler piece of hygiene: <code>TGNMemory.update()</code> records each quantity twice — <code>gates</code> / <code>gates_raw</code>, <code>h_tilde</code> / <code>h_tilde_raw</code>, <code>pre_update</code> / <code>state_used</code>. The <code>_raw</code> and <code>pre_update</code> variants capture the values <em>the model itself computed</em>, before any intervention was applied. Without this, an observational analysis run during an intervened forward pass would report back whatever you injected, and the measurement would be circular. On a clean pass the two are identical.</p>
+
+<p>This matters for a specific experiment design: §8's causal arms need to clamp a gate <em>and</em> report what the model's own gate would have been, in the same run. Storing only the post-intervention value would make that impossible without a second forward pass, and a second pass introduces its own divergence under dropout.</p>
+
+<h3>Padding is a no-op, and that had already broken two experiments</h3>
+
+<p>Every sample is padded to a global maximum event count behind a boolean mask, and writes at padded steps are explicit no-ops (<code>torch.where(mask, memory_new, mem)</code>; padded events are routed to a dummy node at index <code>num_nodes</code>). The dummy slot is a neat trick — rather than branching on the mask to skip a write, every write happens and the harmless ones land in a slot nothing reads — but it means the <em>number of steps</em> is not the number of <em>real</em> steps, and two experiments ignored that:</p>
+
+<ul>
+<li><strong>Experiment 8</strong> drew its random control step from the padded range, so roughly half of all control interventions did nothing at all. That inflated the control baseline — which is precisely the scientific control for the knockout claim.</li>
+<li><strong>Experiment 6</strong> swept the padded range and computed pilot means over it. Both importance maps then shared identical zero cells, inflating the correlation <em>between</em> them, and the mean-ablation target was contaminated with dummy-node activations.</li>
+</ul>
+
+<p><code>tests/test_padding_and_hooks.py</code> pins both, and also pins the hook indexing convention (<code>2*i</code> source, <code>2*i+1</code> destination) — an off-by-one there would analyse the wrong node and produce plausible, wrong numbers.</p>
+</section>
+
+
+<section>
+<h2 id="composition"><span class="num">07</span>The central finding: accumulation, not routing</h2>
+
+<p>Here is the question the study exists to answer. The model must combine information about \(A\), \(B\) and \(C\). There are two architecturally plausible ways it could do that.</p>
+
+<div class="deck">
+<div class="card"><div class="k">Hypothesis R</div><div class="v" style="font-size:17px">Compositional routing</div><div class="d">Information about \(A\) is written into \(B\)'s memory at the \(A\to B\) event, carried there, and read out through \(B\). \(B\)'s memory is a relay. This is the "circuit" story, and the analogue of a transformer induction head.</div></div>
+<div class="card"><div class="k">Hypothesis I</div><div class="v" style="font-size:17px">Independent accumulation</div><div class="d">Each of the three memories evolves on its own, absorbing whatever events touch it. The classifier head does all the combining, at the end, from three separately-grown vectors.</div></div>
+</div>
+
+<p>The two hypotheses disagree sharply about <code>source_shuffle</code>. If the chain's origin changes from \(A\) to \(X\), where does the damage live? Under routing, in \(B\)'s memory (the relay now carries the wrong identity). Under accumulation, in \(A\)'s own memory slot (\(A\) was simply never touched by the motif edge). That disagreement is what makes <code>source_shuffle</code> the right diagnostic — and it is worth noting that the other four corruptions are <em>not</em> diagnostic here, because both hypotheses predict the same thing for them.</p>
+
+<h3>The measurement</h3>
+
+<p>For each positive sample, run a clean pass and a source-shuffled pass; then restore some clean activation into the corrupted run and measure how much of the lost logit comes back:</p>
+
+<div class="eq">
+\[
+\text{recovery} \;=\; \frac{\overline{\ell_{\text{patched}}} - \overline{\ell_{\text{corrupt}}}}{\overline{\ell_{\text{clean}}} - \overline{\ell_{\text{corrupt}}}}
+\]
+</div>
+
+<div class="note">
+<span class="tag">Design decision: ratio of means, not mean of ratios</span>
+<p>The code computes both and reports the ratio of means as primary. The difference is not cosmetic.</p>
+<p>The per-sample ratio \(\frac{\ell^{(i)}_{\text{patched}} - \ell^{(i)}_{\text{corrupt}}}{\ell^{(i)}_{\text{clean}} - \ell^{(i)}_{\text{corrupt}}}\) has a denominator that can approach zero for any sample the corruption barely moved. Those samples produce enormous ratios of either sign, and the <em>mean</em> of the ratios is dominated by them — it is a heavy-tailed statistic whose variance may not exist in any useful sense.</p>
+<p>The ratio of means weights each sample by how much the corruption actually damaged it, which is the sensible weighting: a sample where the corruption did nothing contributes little information about what the patch restores.</p>
+<p>Two further guards back this up. Samples with \(|\ell_{\text{clean}} - \ell_{\text{corrupt}}| &lt; 0.01\) are <strong>dropped</strong>, and if fewer than 10 usable samples survive the experiment <strong>refuses to report at all</strong> — returning an explicit <code>insufficient_samples</code> record instead of a number. That branch fires routinely on an undertrained model, where the corruption does not yet damage the prediction and every "result" would be noise dressed as a finding.</p>
+</div>
+
+<h3>Four arms, not one</h3>
+
+<p>A bare recovery number means nothing. Experiment 2 runs four conditions per sample:</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Arm</th><th>Intervention</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td><code>patched</code></td><td>inject <em>this</em> sample's clean <code>mem_B</code> at the B→C step</td><td>the test</td></tr>
+<tr><td><code>mismatched</code></td><td>inject <em>another</em> sample's clean <code>mem_B</code></td><td>the null — controls for "injecting anything does something"</td></tr>
+<tr><td><code>patch_A</code></td><td>restore clean <code>mem_A</code> at the readout</td><td>the rival hypothesis' prediction</td></tr>
+<tr><td><code>ceiling</code></td><td>restore clean <code>mem_A</code>, <code>mem_B</code>, <code>mem_C</code> at the readout</td><td>instrument check — must return ≈1.0</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The mismatched arm uses a <strong>derangement</strong> — a cyclic shift by a random offset — so no sample can receive its own memory back by accident. A naive random permutation would leave roughly one sample in \(e\) fixed, and each such sample silently converts a null-arm observation into a test-arm observation, biasing the null upward.</p>
+
+<h3>The result</h3>
+
+<div class="deck">
+<div class="card"><div class="k">Patch B's memory</div><div class="v">19.8%</div><div class="d">95% CI [14.7, 24.9], \(p &lt; 10^{-4}\)</div></div>
+<div class="card"><div class="k">Patch A's own memory</div><div class="v">37.3%</div><div class="d">the rival hypothesis recovers nearly twice as much</div></div>
+<div class="card"><div class="k">Ceiling arm</div><div class="v">1.0000</div><div class="d">on all five corruptions — the instrument is sound</div></div>
+</div>
+
+<p><strong>Independent accumulation wins.</strong> \(B\)'s memory does carry something — 19.8% is not zero, and the interval excludes it decisively — but \(A\)'s own slot carries nearly twice as much. The model is not routing \(A\)'s identity through \(B\); it is growing three memories in parallel and letting the classifier head do the joining.</p>
+
+<p>This is a negative result about circuits, and it is the more interesting outcome. The transformer interpretability canon is built on finding routing circuits — induction heads, indirect-object-identification circuits, name-mover heads — and the implicit expectation is that other architectures have them too. In this one, with this task, at this scale, the mechanism is flatter than that. A plausible reading: <em>the architecture does not need routing here.</em> The classifier sees all three memories simultaneously and has the capacity to combine them, so there is no gradient pressure to build a relay. Routing circuits may be what you get when the architecture <em>forces</em> information through a bottleneck — which is exactly the situation of an autoregressive transformer moving information between token positions.</p>
+
+<h3>Experiment 2b: does it hold for all five corruptions?</h3>
+
+<p>Experiment 2 answers the question for <code>source_shuffle</code> only. Experiment 2b runs the decomposition for all five, with one design change: every arm injects at the <strong>readout</strong> rather than at the B→C step. The reason is that "B's memory at the B→C step" is not even well-defined for <code>topology_break</code> or <code>edge_deletion</code>, which replace that edge entirely — \(B\) is not the source at that step and there is nothing to restore. The readout is defined for every corruption and is the site the classifier actually consumes, which makes the arms comparable across strategies.</p>
+
+<p>Two further design notes in that file are worth repeating because they are the kind of detail that decides whether a comparison is valid:</p>
+<ul>
+<li><strong>Re-sorting.</strong> <code>timing_break</code> and <code>temporal_misordering</code> change timestamps, and the model consumes events in sequence order. Both corruptions therefore re-sort the real events afterwards, matching what the generator does. Without this, sequence order and timestamps disagree and the model sees an input off its training distribution — so the measured "damage" would partly be distribution shift rather than the corruption.</li>
+<li><strong>Replacement-edge sampling.</strong> <code>edge_deletion</code> draws its replacement from non-candidate nodes only. The generator draws from all nodes and validates afterwards; drawing outside the candidate set guarantees the same property by construction and avoids a rejection loop whose acceptance rate would vary by sample.</li>
+</ul>
+
+<p>The verdict at the readout is uniform and stark: <strong>\(B\)'s memory is not sample-specific for any of the five</strong>. The matched-minus-mismatched contrast is \(\le 0.05\) in every case, with every \(p \ge 0.387\). Injecting <em>a</em> clean <code>mem_B</code> does as well as injecting <em>the</em> clean one.</p>
+
+<h3>Experiment 2d: where the specificity goes</h3>
+
+<p>Those two results are in tension. At the B→C step, \(B\)'s memory is strongly sample-specific (matched beats mismatched by \(+1.17\), \(p < 10^{-4}\)). At the readout, it is not specific at all. Both cannot describe a static quantity — something destroys the specificity in between.</p>
+
+<p>The hypothesis is mechanical: \(B\)'s memory is a <strong>fixed-size slot that every subsequent event touching \(B\) rewrites</strong> through the GRU. Experiment 2d tests it by stratifying samples on \(q\), the number of times \(B\) is updated after the decision step, and running matched/mismatched patches at both sites. The step-level contrast is the positive control — it should stay large regardless of \(q\), since it is measured before any overwriting can occur.</p>
+
+<p>If readout contrast is large at \(q=0\) and falls as \(q\) grows, overwriting is the mechanism, and the completion-time readout's advantage has the same cause: <em>reading earlier reads a trace that later events have not yet destroyed</em>. This is a concrete, architecture-level limitation of per-node-memory TGNs — a bounded-capacity slot that cannot refuse a write — and it is the kind of finding that only falls out of a causal study.</p>
+
+<p>Note what the GRU's own equations say about this. Writing is \(s' = (1-z)\odot s + z\odot\tilde h\), so old content survives a write by the factor \((1-z)\) <em>per dimension</em>. After \(q\) subsequent writes, a dimension retains roughly \(\prod_{j=1}^{q}(1 - z_j)\) of its original value. For any \(z\) bounded away from zero this decays geometrically in \(q\) — and the gate <em>cannot</em> be zero on average, because a gate that never writes would make the memory useless. The architecture therefore has a built-in forgetting rate it cannot opt out of, and the only free parameter is how fast.</p>
+
+<h3>Experiment 2c: is 20% a floor or an estimate?</h3>
+
+<p>The report names this as the most serious remaining limitation of Experiment 2, and then goes and bounds it. Replacing all 128 dimensions of <code>mem_B</code> recovers ~20%. But if routing were confined to a handful of coordinates, a whole-vector patch would partly wash it out — a 128-dimensional vector has ample room to carry an identity signature in a small subspace. So 20% is a <em>lower bound</em>, not an estimate, unless you check.</p>
+
+<p>Experiment 2c patches only \(k\) dimensions back to clean, for \(k\) on a geometric sweep from 1 to 128, under two orderings:</p>
+<ul>
+<li><code>delta</code> — dimensions ranked by \(|{\text{clean}} - {\text{corrupt}}|\) averaged across samples. If a signature exists anywhere, these are the coordinates carrying it.</li>
+<li><code>random</code> — random subspaces of the same size, <em>resampled per sample</em>. The matched null, controlling for the fact that patching <em>any</em> \(k\) dimensions moves the logit somewhat.</li>
+</ul>
+
+<p>The answer: recovery localises to <strong>16 of 128 coordinates</strong>, with random subspaces of equal size recovering about <strong>6× less</strong>. So the content is concentrated, and the whole-vector number does understate it — but the concentration is in a 12.5% subspace, not a 1% one, and it does not change the ranking against <code>patch_A</code>. The \(k=128\) point is retained as an internal consistency check: it must reproduce Experiment 2's whole-vector number exactly, and it does.</p>
+
+<p>One caveat on the ranking method, stated because it bounds the claim: dimensions are selected by the <em>same</em> corruption whose damage is then measured. That is a mild form of selection on the outcome. The random-subspace control is what makes the comparison interpretable — it is subject to no such selection, so the 6× gap is a real difference in recoverable content — but the absolute 16-dimension figure should be read as "recovery concentrates in roughly this many coordinates," not as the identification of a fixed 16-dimensional feature.</p>
+</section>
+
+
+<section>
+<h2 id="gates"><span class="num">08</span>The gates: discriminable but causally inert</h2>
+
+<p>Half the model's parameters are in the GRU. If the model has learned to recognise a motif, a natural place to look is the update gate \(z_t\): does \(B\)'s gate behave differently when the motif edge arrives than when a noise edge does?</p>
+
+<h3>Part A — observational</h3>
+
+<p>For each positive sample, extract \(z_t\) and \(r_t\) at \(B\)'s motif update versus a randomly-chosen non-motif update of \(B\), and test per-dimension discriminability with paired \(t\)-tests under Benjamini–Hochberg FDR correction.</p>
+
+<p>The gates are, observationally, extremely discriminable: <strong>100 of 128</strong> dimensions for one gate and <strong>126 of 128</strong> for the other separate motif from non-motif updates. That looks like a result.</p>
+
+<p>The experiment's own docstring immediately undercuts it. The control — a randomly sampled non-motif update of \(B\) — may differ from the motif update in elapsed time, incoming message, source identity, event position <em>and</em> surrounding context. The analysis establishes that \(B\)'s gates differ between the motif update and some other update. It does not establish motif-<em>specific</em> specialisation. Naming the confound in the same file that produces the number is good practice and uncommon.</p>
+
+<h3>Part B — causal</h3>
+
+<p>So clamp the gates. Replace \(z_t\) (or \(r_t\)) with its non-motif mean at the motif step and see what happens to the logit, against a <strong>matched permutation control</strong>: the same values, randomly reassigned across dimensions. The permutation does the same amount of "something" while destroying the motif-specific <em>pattern</em>, which separates "the intervention perturbed the model" from "the intervention removed the thing we care about."</p>
+
+<p>The result: <strong>clamping either gate moves the logit <em>less</em> than its permutation control does.</strong> The motif-specific deviation in the gates is causally inert, despite 100/128 and 126/128 dimensions being observationally discriminable.</p>
+
+<div class="note">
+<span class="tag">The general lesson</span>
+<p>This is a clean, quantified instance of the central failure mode in interpretability: <strong>observational discriminability does not imply causal relevance</strong>. A probe can read a feature off an activation with high accuracy while that feature contributes nothing to the computation downstream. Here the gap is as wide as it gets — near-total linear separability, and a causal effect smaller than a random reshuffle of the same numbers.</p>
+</div>
+
+<h3>Experiment 3c — is it the gate, or is it the clamp?</h3>
+
+<p>That null is only trustworthy if the clamp was capable of showing an effect. Read equation (4) again:</p>
+
+<div class="eq">\[ s' = (1 - z)\odot s + z \odot \tilde h \]</div>
+
+<p>Clamping \(z\) changes <em>how much</em> of the candidate is written, leaving \(\tilde h\) intact. The motif signal still arrives — merely attenuated. A small clamping effect is therefore consistent with two very different worlds: one where the write pathway carries nothing, and one where it carries a great deal but the clamp is too blunt to interrupt it. Experiment 3b cannot separate them, and saying "the gates are causally inert" without separating them overstates what was measured.</p>
+
+<p>Experiment 3c intervenes on \(\tilde h\) directly through the <code>h_candidate_*</code> point, which changes <em>what</em> is written with the gate untouched — the content-side counterpart to gate clamping. Six interventions at the \(A\to B\) step, each paired with its own dimension-permuted control built from the same values. Crucially it adds <strong>capacity arms</strong>: \(z \to 0\) (suppress the write entirely) and \(z \to 1\) (write the candidate wholesale), which measure how much effect is <em>available</em> through this pathway at all.</p>
+
+<div class="deck">
+<div class="card"><div class="k">Suppressing the write</div><div class="v">73%</div><div class="d">of predictions flip — the gate pathway is unambiguously essential</div></div>
+<div class="card"><div class="k">The clamp's severity</div><div class="v">4.7%</div><div class="d">of that available effect — the probe was mild, by construction</div></div>
+</div>
+
+<p>This is the resolution, and it is a better answer than either simple one. The gate pathway <em>matters enormously</em>: delete it and three-quarters of predictions flip. But the specific motif-vs-noise deviation in the gate values — the thing Part A found so discriminable — contributes nothing detectable. Both statements are true, and only the severity-matched design lets you say both without contradiction.</p>
+
+<div class="note warn">
+<span class="tag">A confound caught in the author's own prior analysis</span>
+<p>Comparing <code>clamp_z</code> (replace the gate with its noise-condition mean — a <em>mild</em> perturbation) directly against <code>h_zero</code> (delete the candidate outright — a <em>severe</em> one) measures the severity difference, not the pathways. The earlier version of this analysis did exactly that and consequently overstated a pathway asymmetry by a factor of <strong>21×</strong>. The same zero-vs-mean confound is documented independently in Experiment 6.</p>
+<p>The general form of the error: <strong>comparing two interventions of different magnitude and attributing the difference to their targets.</strong> It is easy to commit because the two interventions have different natural "neutral" values — the neutral value for a gate is its mean, and for a content vector it is arguably zero — so matched severity has to be constructed deliberately rather than falling out of the design.</p>
+</div>
+</section>
+
+
+<section>
+<h2 id="instruments"><span class="num">09</span>Instrument validity as a first-class result</h2>
+
+<p>This is the part of the project that is least like a typical interpretability paper, and most worth copying.</p>
+
+<h3>Ceiling arms</h3>
+
+<p>Every patching claim carries a ceiling arm: restore <em>all three</em> readout memories, so the classifier sees exactly its clean inputs. Recovery must be 1.0 by construction — anything else means the patching machinery is broken, the hook is firing at the wrong index, or the tensor is being broadcast incorrectly. Measured recovery is <strong>1.0000 on all five corruptions</strong>. That number is not a finding about the model; it is a receipt for every other number in the study.</p>
+
+<p>It is worth being precise about what a ceiling arm does and does not certify. It confirms that the intervention <em>mechanism</em> works at the readout — that the dict key is right, the callable fires, the shape broadcasts, and the value reaches the classifier. It does not confirm that a <em>per-event</em> point reaches what you think it reaches, which is why the <code>memory_pre</code> defect required its own targeted test rather than being caught by this arm.</p>
+
+<h3>A control that failed its own audit</h3>
+
+<p>Permutation controls are the workhorse null here, and the project does not assume they work. Experiment 7 runs a shuffled-label null: repeat the Part A gate analysis with the "motif" and "non-motif" designations <em>randomly swapped</em>. If the Part A finding is real, this should show zero significant dimensions after BH correction.</p>
+
+<p>The deeper check is quantitative. A permutation control is only a valid null if shuffling destroys the structure without destroying the magnitude — if it reaches only a small fraction of what outright deletion achieves. The project measured this for each control:</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Control</th><th class="num">Fraction of deletion effect reached</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Permutation control A</td><td class="num">97.8%</td><td><strong>Rejected</strong> — shuffling is nearly as destructive as deleting, so it cannot serve as a null</td></tr>
+<tr><td>Permutation control B</td><td class="num">7.2%</td><td><strong>Validated</strong> — perturbs without destroying</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Throwing out one of your own controls on a quantitative diagnostic — rather than using it and hoping — is the single most unusual move in the project. A shuffle that reaches 97.8% of deletion is not a null hypothesis; it is a second treatment arm wearing a disguise, and any comparison against it would have understated every effect in the study.</p>
+
+<p>The mechanism behind an invalid shuffle is worth understanding, because it is predictable in advance. If a vector's components are highly heterogeneous — a few large, most near a common value — then permuting dimensions moves the large components to positions where the downstream weights expect small ones, and the resulting activation is far off-manifold. The shuffle has preserved the <em>multiset</em> of values while destroying their <em>assignment</em>, and when assignment is most of the information, that is deletion by another name. The diagnostic — compare against an actual deletion — is cheap and should be routine.</p>
+
+<h3>A sign reversal, documented rather than buried</h3>
+
+<p>One analysis produced a correlation of \(+0.648\) at \(p = 0.0008\) with \(n = 12\). Extending the same analysis to \(n = 51\) turned it into \(-0.400\) at \(p = 1.0\). The project reports this as a worked caution about small strata rather than quietly dropping it.</p>
+
+<p>The arithmetic is worth internalising: at \(n=12\), the two-tailed 5% critical value for Pearson's \(r\) is about \(0.576\). A correlation of \(0.648\) clears it — comfortably enough to look like a real effect, and with a \(p\)-value under \(10^{-3}\) that reads as strong evidence. It was noise, and it reversed sign entirely on four times the data. Multiply by the number of strata an interpretability study naturally produces (per-corruption, per-layer, per-dimension, per-checkpoint), and a few such findings are guaranteed.</p>
+
+<h3>Cross-seed consistency</h3>
+
+<p>Experiment 9 asks whether the circuit fingerprint is a property of the architecture and task, or of one lucky initialisation. It loads Experiment 1's importance maps from multiple seeds, computes pairwise Pearson correlation of the flattened maps, and reports the mean — with correlation above 0.8 as the bar for "stable structure." It also checks whether the <em>same</em> memory dimensions are flagged significant across seeds. It runs automatically from <code>compile_results.py</code> whenever ≥2 seeds exist.</p>
+
+<h3>The regression suite</h3>
+
+<p>Five test files, 22 assertions, no pytest dependency — plain asserts that run anywhere the project runs. Each pins a defect that was actually found:</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Test file</th><th>Defect pinned</th></tr></thead>
+<tbody>
+<tr><td><code>test_memory_intervention.py</code></td><td>message-side vs. state-side patching (§6)</td></tr>
+<tr><td><code>test_candidate_intervention.py</code></td><td><code>h_candidate</code> replaces the candidate; <code>h_tilde_raw</code> still reports the model's own value; no-op at padded steps; content &gt; gate asymmetry holds</td></tr>
+<tr><td><code>test_generator_parity.py</code></td><td>the 78.2% candidate-internal-edge leak (§3)</td></tr>
+<tr><td><code>test_padding_and_hooks.py</code></td><td>padded-range control steps; hook indexing convention</td></tr>
+<tr><td><code>test_statistics.py</code></td><td>the BH NaN propagation bug, below</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note flag">
+<span class="tag">The silent statistics bug</span>
+<p>The Benjamini–Hochberg implementation had a failure mode that produced a <em>plausible-looking negative result</em>. <code>np.argsort</code> sorts NaN last, so <code>adjusted[sorted_idx[-1]]</code> became NaN; Python's <code>min(nan, x)</code> returns NaN when NaN is the first argument, so the NaN propagated down the entire step-up chain. Every adjusted \(p\)-value became NaN, and <code>rejected = adjusted &lt; alpha</code> was then all-False.</p>
+<p>The output: "0 of 128 dimensions significant." Which reads exactly like a real finding.</p>
+<p>And it was reachable, not theoretical — <code>scipy.stats.ttest_rel</code> returns NaN whenever the paired differences have zero variance, which is entirely realistic for a saturated sigmoid gate dimension.</p>
+</div>
+
+<div class="note plain">
+<span class="tag">Design decision: plain asserts, not pytest</span>
+<p>The suite is a set of functions with bare <code>assert</code> statements and a <code>run_all.py</code> driver. The stated reason — "they run anywhere the project runs" — is about dependency surface: the experiments run on Kaggle and Colab sessions where adding a dev dependency is friction, and a test suite that cannot be run is not a test suite.</p>
+<p>What is given up is real: no fixtures, no parametrisation, no <code>pytest.approx</code>, no selective runs, and failure output is whatever the assert message says. For 22 assertions over a stable API that is an acceptable trade; at ten times the count it would not be. The important property is preserved either way — each test pins a specific defect with a comment explaining what broke and why it mattered.</p>
+</div>
+
+<p>Finally, the 22-test suite does one more thing: it verifies <strong>bit-identical forward passes</strong> across the instrumentation refactor. Adding 19 intervention branches to a forward pass is exactly the kind of change that perturbs numerics without anyone noticing — a reordered operation, a different broadcast, an accumulation in a different dtype. Asserting bit-identity (not approximate equality) means every result from before the refactor remains comparable to every result after it.</p>
+</section>
+
+
+<section>
+<h2 id="dynamics"><span class="num">10</span>Training dynamics: when the algorithm appears</h2>
+
+<p>Checkpoints every 5 epochs turn a static study into a developmental one. Five experiments replay the same probes across training. This is cheap — the checkpoints were being written anyway — and it answers a class of question a final-model analysis cannot: not <em>what</em> the model computes, but <em>in what order it learned to</em>.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Exp</th><th>Question</th><th>Method</th></tr></thead>
+<tbody>
+<tr><td>T1</td><td>When does the compositional pathway become causally load-bearing?</td><td>zero-ablate <code>mem_B</code> at the B→C step on fixed positives at every checkpoint; track causal effect, flip rate, accuracy</td></tr>
+<tr><td>T2</td><td>Which corruptions does the model learn to detect first?</td><td>evaluate a fixed test set at every checkpoint, grouped by corruption type — the model's self-taught <em>curriculum</em></td></tr>
+<tr><td>T3</td><td>When do \(z_t\) dimensions specialise?</td><td>per-dimension motif-vs-noise discriminability at each checkpoint</td></tr>
+<tr><td>T4</td><td>Does the time-window boundary sharpen, and when?</td><td>inject a Δt sweep at the B→C step; track sharpness \(= \ell(4.5) - \ell(5.5)\)</td></tr>
+<tr><td>T5</td><td>Do the learned frequencies know about \(\Delta=5\)?</td><td>read <code>time_encoder.w</code> from each checkpoint's state dict; flag frequencies with implied period ≈ 5.0</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>T2 is conceptually the richest: the order in which a model masters the five corruptions is a direct read on which sub-computations are easy and which are hard. <code>edge_deletion</code> (the chain simply does not complete) should be learnable almost immediately; <code>timing_break</code> requires the \(\Delta\) boundary; <code>source_shuffle</code> requires node-identity matching across two events. The ordering of those curves <em>is</em> the model's implicit curriculum, obtained for free from checkpoints that were being saved anyway.</p>
+
+<p>T4's sharpness metric deserves a note on construction. Defining sharpness as \(\ell(4.5) - \ell(5.5)\) — the logit difference across the true boundary — is a deliberately crude two-point estimate of a derivative. The alternative, fitting a sigmoid to the full sweep and reporting its slope parameter, is more precise but introduces a fitting procedure that can itself fail or converge differently across checkpoints, making the trajectory partly an artefact of the fit. A two-point difference has no such failure mode, and for tracking a trend across checkpoints the monotone relationship to true sharpness is all that is required.</p>
+
+<h3>Experiment 5 — reading the failure cases</h3>
+
+<p>Source-shuffle accuracy sits around 77%, well below the others. Rather than treating that as a number to improve, Experiment 5 treats it as data: partition the source-shuffle negatives into correctly-classified and misclassified, then compare their readout memories (<code>mem_A</code>, <code>mem_B</code>, <code>mem_C</code>) to the positive-sample reference distribution by cosine similarity. What does the model <em>see</em> in the ones it gets wrong?</p>
+
+<p>Cosine similarity is the right metric here rather than Euclidean distance, for a specific reason: memory vectors grow in norm as events accumulate, so a sample with more events touching a node produces a larger vector regardless of content. Euclidean distance would be dominated by that norm difference — effectively measuring event count. Cosine isolates direction, which is the part that plausibly carries content.</p>
+
+<p>This is the right reflex generally. A 77% accuracy on one corruption class, when the others are higher, is a pointer at the mechanism — it says the identity-matching sub-computation is the weak one, which is precisely consistent with the independent-accumulation finding. If the model never routes \(A\)'s identity through \(B\), then detecting that the <em>origin</em> changed is the hardest of the five discriminations, because it depends entirely on \(A\)'s own slot having been left untouched.</p>
+</section>
+
+
+<section>
+<h2 id="engineering"><span class="num">11</span>Engineering decisions and the alternatives</h2>
+
+<p class="lede">Choices that are invisible in the results but determined whether the project was runnable at all.</p>
+
+<h3>Batch-vectorised over event index</h3>
+
+<p>The forward pass loops over <em>event index</em>, not over samples:</p>
+
+<pre><code>for i in range(max_events):           # ~30–50 iterations
+    step_src = src[:, i]              # (B,) — all samples at once
+    ...
+    self.memory.update(batch_idx, step_src, msg_for_src, ...)</code></pre>
+
+<p>Each sample holds a private memory bank of shape \((B, \text{num\_nodes}+1, d)\), so the per-sample causal ordering is exact while the arithmetic is parallel across the batch. The alternative — looping over samples and processing each one's event stream — is the obvious implementation and is roughly \(B\) times slower, which at batch 32 is the difference between a tractable sweep and an intractable one. The memory cost is the trade: a private bank per sample is \(32 \times 51 \times 128\) floats, which is small, but it is allocated fresh per batch.</p>
+
+<h3>Hyperparameter search: Optuna, with alternatives present</h3>
+
+<p><code>tune_hyperparams.py</code> implements three strategies — random, grid, and Bayesian via Optuna — and the Bayesian path is what produced the final configuration (the <code>dropout = 0.108</code> is the tell). The reasoning follows the standard argument: grid search wastes its budget re-testing unimportant dimensions at every level of the important ones, random search fixes that but has no memory, and Tree-structured Parzen Estimator search models \(p(\text{config} \mid \text{good})\) versus \(p(\text{config}\mid\text{bad})\) and samples where the ratio is favourable. Each trial here is a full training run, so trials are expensive and sample-efficiency is worth the extra machinery.</p>
+
+<p>Keeping all three implemented rather than only the winner is a reasonable call for a research codebase: grid search remains useful for a deliberately exhaustive sweep over two or three parameters when you want the full surface rather than the optimum.</p>
+
+<h3>Checkpoint-and-resume as a design constraint</h3>
+
+<p>The pipeline is written against a 12-hour Kaggle T4 session with <code>batch_size = 32</code>, and that constraint shapes the architecture of the scripts more than anything else. <code>run_all_seeds.py</code> orchestrates training plus all experiments plus audits across seeds; <code>run_experiments.py</code> selects by name or category; <code>run_exp7_standalone.py</code> exists specifically because the permutation test is expensive enough to need its own session. Experiments are ordered so cheap ones yield results first and expensive ones run last — which means a session that dies at hour 11 still produced something.</p>
+
+<p>This is unglamorous and it is why the project has results. A monolithic script that must run to completion on a session that can be pre-empted produces nothing.</p>
+
+<h3>Why PyTorch</h3>
+
+<p>Define-by-run is close to a requirement here rather than a preference. The intervention API passes <em>arbitrary Python callables</em> into the forward pass, keyed by runtime values, with control flow that depends on which keys are present. In a define-and-run graph framework that pattern needs the intervention points baked into the graph at trace time, which defeats the purpose. JAX could express it functionally — threading an intervention dict through a scan — but the memory bank is mutable state updated in a loop, which is exactly what functional purity makes awkward. PyTorch Geometric supplies <code>TemporalData</code> and the batching utilities, so the data layer is standard even though the model is hand-rolled.</p>
+</section>
+
+
+<section>
+<h2 id="significance"><span class="num">12</span>Why this matters outside the lab</h2>
+
+<h3>The deployment context</h3>
+
+<p>Temporal graph models are already live in places where their decisions have consequences: payment-fraud detection, money-laundering typology detection, coordinated-inauthentic-behaviour detection on social platforms, lateral-movement detection in network security, recommendation over interaction streams. In several of these, there is a regulatory expectation of explanation — adverse-action notices under US credit law, GDPR Article 22 in the EU, the EU AI Act's requirements for high-risk systems.</p>
+
+<p>"A temporal graph network flagged this account" is not an explanation. The work needed to make it one has to start with knowing what internal mechanism the architecture actually uses, and this project is a first systematic attempt at that for TGNs specifically.</p>
+
+<h3>What the finding implies for practitioners</h3>
+
+<ul>
+<li><strong>Independent accumulation means attribution is simpler than feared — and weaker than hoped.</strong> If the three memories evolve independently, then per-node attribution is meaningful: you can ask "what did \(A\)'s slot contribute?" and get an answer. But it also means the model is not building the compositional representation of the <em>chain</em> that an analyst would reach for. It detects chain completion without representing the chain.</li>
+<li><strong>Overwriting is an architectural ceiling, not a training problem.</strong> Experiment 2d's mechanism — later events destroying earlier traces in a fixed-size slot — bounds how far back a TGN can usefully carry a signal, regardless of how long you train. For fraud patterns that develop over weeks with heavy intervening activity, that is the relevant constraint, and no amount of data fixes it. It also motivates the completion-time readout as a design pattern: read at the decision point, not at the end.</li>
+<li><strong>Gate-level probes will mislead you.</strong> 126 of 128 dimensions separating motif from noise, and no causal effect at all, is a warning about the whole family of "probe the activations, find the feature" methods when applied to recurrent gates.</li>
+</ul>
+
+<h3>What it demonstrates methodologically</h3>
+
+<p>Strip out the TGN specifics and what remains is a reusable protocol for causal claims about neural networks:</p>
+
+<ol>
+<li>Build a task with a known ground-truth rule and minimal-pair counterfactuals.</li>
+<li>Adversarially audit the data generator — and assume your audit is incomplete.</li>
+<li>Hand-roll the component you want to inspect; fused kernels are opaque by construction.</li>
+<li>Pair every structured intervention with a matched control that does the same amount of "something."</li>
+<li><strong>Quantitatively validate the control itself</strong> against a deletion reference, and discard it if it fails.</li>
+<li>Run ceiling arms so the instrument proves itself on every claim.</li>
+<li>Match severity before comparing pathways, and add capacity arms to say how much effect was available.</li>
+<li>Pin each fixed defect with a regression test; verify bit-identity across instrumentation changes.</li>
+<li>Check stability across seeds; report your own reversals.</li>
+</ol>
+
+<p>Steps 5, 7 and 9 are the ones most often skipped, and they are the three that changed conclusions in this project: a rejected control, a 21× overstated asymmetry, and a sign reversal.</p>
+</section>
+
+
+<section>
+<h2 id="limits"><span class="num">13</span>Honest limits</h2>
+
+<p>Stated plainly, because a study whose central contribution is instrument validity should be the first to bound itself.</p>
+
+<ul>
+<li><strong>One architecture, one task, one scale.</strong> 121,546 parameters, a synthetic three-node motif, 50 nodes. "Independent accumulation" is a finding about <em>this</em> model on <em>this</em> task. A larger TGN with multi-hop attention in the embedding module — which this one deliberately replaces with the identity, per <a href="#tgn-primer">§2</a> — might compose differently, and the attention layer would supply exactly the bottleneck that routing circuits tend to form around.</li>
+<li><strong>Synthetic data.</strong> The anti-shortcut work is extensive, but a hand-built generator can only defend against shortcuts someone thought of. The 78.2% leak is the proof — it existed through several rounds of defence, and a six-baseline audit could not see it. There is no reason to believe it was the last one.</li>
+<li><strong>The 16-of-128 subspace is a localisation, not an identification.</strong> Experiment 2c shows recovery concentrates; it does not say what those 16 coordinates encode, nor whether the same 16 appear across seeds — a question Experiment 9 is positioned to answer but which needs the multi-seed results to be in hand. The dimensions are also selected using the same corruption whose damage is measured.</li>
+<li><strong>Observational gate discriminability remains confounded.</strong> Experiment 3A's control differs from the motif update in elapsed time, message content, source identity and position. The causal null is clean; the observational number should be read as "B's gates differ between these two updates," full stop.</li>
+<li><strong>Label smoothing makes the model deliberately less confident.</strong> It buys measurable dynamic range for the instruments and costs some accuracy. Reported accuracies are therefore not the accuracies this architecture would reach if trained for accuracy alone.</li>
+<li><strong>The repository ships the experiment code, not its outputs.</strong> Methods here have been verified line by line; the reported statistics are the author's and are reproduced as such. Re-running <code>scripts/run_all_seeds.py</code> regenerates them.</li>
+</ul>
+</section>
+
+
+<section>
+<h2 id="repro"><span class="num">14</span>Repository map and reproduction</h2>
+
+<pre class="tree"><code>TGN_Mechanistic_Interpretability/
+├── temporal_gnn_mi/
+│   ├── config.py                     dataclasses: dataset / model / training
+│   ├── datasets/
+│   │   ├── temporal_motif_generator.py   631 lines — the task, 5 corruptions,
+│   │   │                                 structural parity, event-count parity
+│   │   └── batch_utils.py                padding + mask collation
+│   ├── models/
+│   │   ├── tgn.py                    410 lines — forward loop, 19 intervention
+│   │   │                             points, dual readout
+│   │   ├── memory.py                 204 lines — hand-rolled GRU, clone-scatter
+│   │   │                             write-back, raw + used hook pairs
+│   │   ├── time_encoding.py          learnable sin/cos basis (8 frequencies)
+│   │   ├── message.py                2-layer MLP message function
+│   │   ├── embedding.py              identity — deliberate, keeps MI tractable
+│   │   └── flat_gru.py               the self-refutation baseline
+│   └── training/trainer.py           594 lines — joint loss, label smoothing,
+│                                     per-corruption evaluation
+├── experiments/
+│   ├── static/      exp1 … exp9      causal map, composition (2, 2b, 2c, 2d),
+│   │                                 gates (3, 3c), Δt window, failure analysis,
+│   │                                 ablation comparison, null control,
+│   │                                 memory knockout, cross-seed consistency
+│   ├── dynamics/    expT1 … expT5    circuit formation, corruption order,
+│   │                                 gate specialization, time sharpness,
+│   │                                 learned frequencies
+│   └── utils.py                      model loading, dataset prep, plotting
+├── scripts/
+│   ├── run_all_seeds.py              full pipeline × N seeds (T4-sized budget)
+│   ├── run_experiments.py            select by name or category
+│   ├── audit_model.py                6-baseline shortcut audit
+│   ├── tune_hyperparams.py           random / grid / Optuna Bayesian
+│   └── compile_results.py            cross-seed mean ± std aggregation
+└── tests/           5 files, 22 assertions, plain asserts — see §9</code></pre>
+
+<h3>Running it</h3>
+
+<pre><code># full pipeline across seeds (training + all 17 experiments + audits)
+python -m scripts.run_all_seeds --seeds 42 43 44
+
+# a single experiment against an existing checkpoint
+python -m scripts.run_experiments --experiments exp2 exp2c T5 \
+       --model_path runs/.../best_model.pt \
+       --checkpoint_dir runs/.../training/
+
+# by category
+python -m scripts.run_experiments --category static  --model_path ...
+python -m scripts.run_experiments --category dynamics --checkpoint_dir ...
+
+# the regression suite — no pytest needed
+python tests/run_all.py
+
+# shortcut audit on a trained model
+python scripts/audit_model.py runs/.../best_model.pt</code></pre>
+
+<p>Experiment 7 has a standalone runner (<code>run_exp7_standalone.py</code>) because the permutation test is expensive enough to want its own session; the pipeline is written against a 12-hour Kaggle T4 budget with <code>batch_size=32</code>, which is why several scripts are structured around resumable checkpoints rather than one long run.</p>
+</section>
+
+
+<nav class="pager" aria-label="Other documents in this set">
+<div class="spacer"></div>
+<a class="next" href="02-cross-language-brain-alignment.html" rel="next"><span class="dir">Next &rarr;</span><span class="t">Mechanistic Interpretability of Cross-Language Brain Alignment</span></a>
+</nav>
+
+    </main>
+  </div>
+</div>
+
+<footer class="foot">
+  <div class="wrap">
+    <p><b>How this document was produced.</b> Written by reading the project's source code, reports and result files directly. Formulas, file paths, hyperparameters and numbers below were taken from the code as it stands, not from memory. Where the code and the written report disagree, both readings are shown and the disagreement is flagged rather than smoothed over.</p><p>The parameter count quoted throughout (121,546) was re-derived from <code>ModelConfig</code> and the module definitions and matches exactly. Experiment statistics are those reported by the author; the repository ships the experiment code but not its output artefacts, so the numbers are reproduced as reported and the <em>methods that produced them</em> are what has been verified line by line.</p>
+  </div>
+</footer>
+
+<button class="themer" id="themer" type="button">Theme</button>
+<script>
+(function(){
+  var b=document.getElementById('themer'), r=document.documentElement;
+  var saved=null; try{saved=localStorage.getItem('doc-theme')}catch(e){}
+  if(saved){r.setAttribute('data-theme',saved)}
+  b.addEventListener('click',function(){
+    var cur=r.getAttribute('data-theme');
+    if(!cur){cur=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}
+    var next=cur==='dark'?'light':'dark';
+    r.setAttribute('data-theme',next);
+    try{localStorage.setItem('doc-theme',next)}catch(e){}
+  });
+})();
+</script>
+
+</body>
+</html>

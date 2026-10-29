@@ -1,0 +1,1080 @@
+<!doctype html>
+<html lang="en" >
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Algorithmic Collusion Detection via Incentive-Compatible Audits</title>
+<meta name="description" content="Pricing algorithms learn to collude without ever communicating. Rather than hunting for the pattern, this project designs an audit that makes hiding more expensive than being caught — and proves where that threshold lies.">
+<style>
+:root{
+  --bg:#fbfaf7; --bg-alt:#f3f1ea; --ink:#16181d; --ink-soft:#4a505c; --ink-faint:#767d8c;
+  --rule:#ddd9cd; --rule-soft:#e9e5db;
+  --accent:#7a4a1e; --accent-soft:#f0e4d4; --accent-ink:#5c3514;
+  --code-bg:#f5f2eb; --code-ink:#2d2a24;
+  --ok:#2f6b47; --warn:#8a5a10; --flag:#8d3030;
+  --max:min(1180px,100%);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131519; --bg-alt:#1a1d23; --ink:#e7e5e0; --ink-soft:#b2b6bf; --ink-faint:#858b97;
+    --rule:#2c3038; --rule-soft:#23262c;
+    --accent:#d9a86a; --accent-soft:#2a221a; --accent-ink:#e8c396;
+    --code-bg:#1c1f25; --code-ink:#dcd9d2;
+    --ok:#6fbf8e; --warn:#d6a44a; --flag:#e07b7b;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131519; --bg-alt:#1a1d23; --ink:#e7e5e0; --ink-soft:#b2b6bf; --ink-faint:#858b97;
+  --rule:#2c3038; --rule-soft:#23262c;
+  --accent:#d9a86a; --accent-soft:#2a221a; --accent-ink:#e8c396;
+  --code-bg:#1c1f25; --code-ink:#dcd9d2;
+  --ok:#6fbf8e; --warn:#d6a44a; --flag:#e07b7b;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:1.5rem}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:16.5px/1.68 "Iowan Old Style","Charter","Georgia","Source Serif 4",serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--max); margin:0 auto; padding:0 16px}
+.shell{display:grid; grid-template-columns:250px minmax(0,1fr); gap:46px; align-items:start}
+@media (max-width:900px){ .shell{grid-template-columns:1fr; gap:0} }
+
+/* ---------- masthead ---------- */
+header.mast{border-bottom:1px solid var(--rule); background:var(--bg-alt)}
+header.mast .wrap{padding-top:34px; padding-bottom:30px}
+.kicker{
+  font:600 11.5px/1 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:14px;
+}
+h1{font-size:clamp(27px,4.3vw,42px); line-height:1.14; margin:0 0 14px; font-weight:600; letter-spacing:-.015em}
+.standfirst{font-size:18px; color:var(--ink-soft); margin:0; max-width:62ch}
+.meta{
+  display:flex; flex-wrap:wrap; gap:8px 22px; margin-top:22px;
+  font:13px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink-faint);
+}
+.meta b{color:var(--ink-soft); font-weight:600}
+.meta a{color:var(--accent); text-decoration:none; border-bottom:1px solid var(--accent-soft)}
+.meta a:hover{border-bottom-color:var(--accent)}
+
+/* ---------- nav ---------- */
+nav.toc{
+  position:sticky; top:20px; padding:30px 0 40px;
+  font:13.5px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+nav.toc .lbl{font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:12px; font-weight:600}
+nav.toc ol{list-style:none; margin:0; padding:0; counter-reset:toc}
+nav.toc li{counter-increment:toc; margin:0 0 2px}
+nav.toc a{
+  display:block; padding:5px 10px 5px 30px; color:var(--ink-soft); text-decoration:none;
+  border-left:2px solid transparent; border-radius:0 4px 4px 0; position:relative;
+}
+nav.toc a::before{
+  content:counter(toc); position:absolute; left:8px; color:var(--ink-faint);
+  font-variant-numeric:tabular-nums; font-size:11.5px; top:6px;
+}
+nav.toc a:hover{background:var(--bg-alt); color:var(--ink)}
+@media (max-width:900px){
+  nav.toc{position:static; padding:24px 0 8px; border-bottom:1px solid var(--rule-soft)}
+  nav.toc ol{columns:2; column-gap:20px}
+}
+
+/* ---------- body ---------- */
+main{padding:34px 0 90px; min-width:0}
+section{margin:0 0 56px; scroll-margin-top:20px}
+h2{
+  font-size:clamp(21px,2.8vw,27px); font-weight:600; letter-spacing:-.01em;
+  margin:0 0 6px; padding-bottom:10px; border-bottom:1px solid var(--rule);
+}
+h2 .num{color:var(--accent); font-variant-numeric:tabular-nums; margin-right:12px; font-size:.78em; font-weight:600}
+h3{font-size:18.5px; font-weight:600; margin:34px 0 8px; color:var(--ink)}
+h4{font-size:15.5px; font-weight:600; margin:24px 0 6px; color:var(--ink-soft);
+   font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.005em}
+p{margin:0 0 15px; max-width:74ch}
+ul,ol{margin:0 0 15px; padding-left:24px; max-width:74ch}
+li{margin:0 0 7px}
+li > ul, li > ol{margin-top:7px}
+strong{font-weight:600}
+em{font-style:italic}
+a{color:var(--accent)}
+hr{border:0; border-top:1px solid var(--rule-soft); margin:34px 0}
+.lede{font-size:17.5px; color:var(--ink-soft); max-width:70ch}
+
+/* ---------- code ---------- */
+code{
+  font:0.875em/1.5 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  background:var(--code-bg); color:var(--code-ink); padding:.13em .38em; border-radius:3px;
+  border:1px solid var(--rule-soft); word-break:break-word;
+}
+pre{
+  background:var(--code-bg); border:1px solid var(--rule-soft); border-radius:7px;
+  padding:15px 17px; overflow-x:auto; margin:0 0 18px;
+  font:13px/1.62 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  color:var(--code-ink);
+}
+pre code{background:none; border:0; padding:0; font-size:inherit; word-break:normal}
+pre.tree{font-size:12.3px; line-height:1.55}
+.filename{
+  font:600 11.5px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:var(--ink-faint); margin:0 0 6px; letter-spacing:.02em;
+}
+.filename::before{content:"▸ "; color:var(--accent)}
+
+/* ---------- callouts ---------- */
+.note{
+  border-left:3px solid var(--accent); background:var(--accent-soft);
+  padding:14px 18px; margin:0 0 20px; border-radius:0 6px 6px 0; max-width:76ch;
+}
+.note p:last-child{margin-bottom:0}
+.note .tag{
+  display:block; font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent-ink); margin-bottom:8px;
+}
+.note.flag{border-left-color:var(--flag)} .note.flag .tag{color:var(--flag)}
+.note.ok{border-left-color:var(--ok)} .note.ok .tag{color:var(--ok)}
+.note.warn{border-left-color:var(--warn)} .note.warn .tag{color:var(--warn)}
+.note.plain{background:var(--bg-alt); border-left-color:var(--rule)}
+.note.plain .tag{color:var(--ink-faint)}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto; margin:0 0 20px; -webkit-overflow-scrolling:touch}
+table{
+  border-collapse:collapse; width:100%; min-width:430px;
+  font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+caption{
+  caption-side:top; text-align:left; font-size:12.5px; color:var(--ink-faint);
+  padding:0 0 8px; font-family:ui-sans-serif,system-ui,sans-serif;
+}
+th,td{padding:8px 13px; text-align:left; border-bottom:1px solid var(--rule-soft); vertical-align:top}
+th{
+  font-weight:600; font-size:12px; letter-spacing:.055em; text-transform:uppercase;
+  color:var(--ink-faint); border-bottom:1px solid var(--rule); white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:1px solid var(--rule)}
+td.num,th.num{text-align:right; font-variant-numeric:tabular-nums}
+tbody tr:hover{background:var(--bg-alt)}
+td code{font-size:.84em}
+
+/* ---------- misc ---------- */
+.deck{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); margin:0 0 22px}
+.card{border:1px solid var(--rule-soft); border-radius:8px; padding:14px 16px; background:var(--bg-alt)}
+.card .k{
+  font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-faint); margin-bottom:7px;
+}
+.card .v{font-size:21px; font-weight:600; letter-spacing:-.01em; font-variant-numeric:tabular-nums}
+.card .d{font-size:13px; color:var(--ink-soft); margin-top:5px; line-height:1.45;
+         font-family:ui-sans-serif,system-ui,sans-serif}
+figure{margin:0 0 22px}
+figure svg{display:block; width:100%; height:auto; max-width:100%}
+figcaption{font-size:13px; color:var(--ink-faint); margin-top:9px; max-width:70ch;
+           font-family:ui-sans-serif,system-ui,sans-serif; line-height:1.5}
+.eq{
+  background:var(--bg-alt); border:1px solid var(--rule-soft); border-radius:7px;
+  padding:4px 18px; margin:0 0 18px; overflow-x:auto;
+}
+.pill{
+  display:inline-block; font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.07em;
+  text-transform:uppercase; padding:4px 9px; border-radius:20px;
+  background:var(--accent-soft); color:var(--accent-ink); margin:0 6px 6px 0;
+}
+.srconly{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+footer.foot{
+  border-top:1px solid var(--rule); background:var(--bg-alt); padding:24px 0 40px;
+  font:13.5px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink-faint);
+}
+footer.foot .wrap{max-width:var(--max)}
+footer.foot p{max-width:76ch; margin:0 0 9px}
+.themer{
+  position:fixed; right:14px; bottom:14px; z-index:50;
+  border:1px solid var(--rule); background:var(--bg-alt); color:var(--ink-soft);
+  border-radius:20px; padding:7px 14px; cursor:pointer;
+  font:600 12px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.04em;
+}
+.themer:hover{color:var(--ink); border-color:var(--accent)}
+@media print{ .themer,nav.toc{display:none} .shell{grid-template-columns:1fr} body{background:#fff;color:#000} }
+mjx-container{overflow-x:auto; overflow-y:hidden; max-width:100%}
+mjx-container[display="true"]{margin:.7em 0 !important}
+
+/* ---------- set navigation ---------- */
+.setbar{border-bottom:1px solid var(--rule-soft); background:var(--bg)}
+.setbar .wrap{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding-top:11px; padding-bottom:11px;
+  font:13px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.setbar a{color:var(--ink-soft); text-decoration:none}
+.setbar a:hover{color:var(--accent)}
+.setbar .home{font-weight:600; color:var(--ink-soft); white-space:nowrap}
+.setbar .home span{color:var(--accent)}
+.setbar .pos{color:var(--ink-faint); font-variant-numeric:tabular-nums; white-space:nowrap}
+.setbar .jump{display:flex; gap:14px; align-items:center; min-width:0}
+.setbar .jump a{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+@media (max-width:700px){ .setbar .jump .lbl2{display:none} }
+
+nav.toc .sibs{margin-top:26px; padding-top:18px; border-top:1px solid var(--rule-soft)}
+nav.toc .sibs ul{list-style:none; margin:0; padding:0}
+nav.toc .sibs li{margin:0 0 1px; counter-increment:none}
+nav.toc .sibs a{
+  display:block; padding:5px 10px 5px 30px; color:var(--ink-faint); text-decoration:none;
+  border-left:2px solid transparent; border-radius:0 4px 4px 0; position:relative; font-size:13px;
+}
+nav.toc .sibs a .n{position:absolute; left:8px; font-variant-numeric:tabular-nums; font-size:11.5px}
+nav.toc .sibs a:hover{background:var(--bg-alt); color:var(--ink)}
+nav.toc .sibs a[aria-current="page"]{
+  color:var(--ink); font-weight:600; border-left-color:var(--accent); background:var(--accent-soft);
+}
+
+.pager{
+  display:grid; gap:14px; grid-template-columns:1fr 1fr; margin:10px 0 0;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (max-width:620px){ .pager{grid-template-columns:1fr} }
+.pager a{
+  display:block; border:1px solid var(--rule-soft); border-radius:8px; padding:14px 16px;
+  text-decoration:none; background:var(--bg-alt); color:var(--ink);
+}
+.pager a:hover{border-color:var(--accent)}
+.pager .dir{
+  display:block; font:600 10.5px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:7px;
+}
+.pager .t{display:block; font-size:14.5px; font-weight:600; line-height:1.35}
+.pager .next{text-align:right}
+.pager .spacer{border:1px dashed var(--rule-soft); border-radius:8px; opacity:.35}
+
+/* ---------- index page ---------- */
+.indexwrap{max-width:900px; margin:0 auto; padding:0 16px}
+main.index{padding:36px 0 80px}
+.projlist{display:flex; flex-direction:column; gap:16px; margin:0 0 44px}
+.proj{
+  display:block; border:1px solid var(--rule-soft); border-radius:10px; padding:20px 22px;
+  text-decoration:none; color:var(--ink); background:var(--bg-alt); position:relative;
+}
+.proj:hover{border-color:var(--accent)}
+.proj .pnum{
+  font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.14em; color:var(--accent);
+  display:block; margin-bottom:9px;
+}
+.proj h3{margin:0 0 8px; font-size:20px; font-weight:600; letter-spacing:-.01em; line-height:1.25}
+.proj p{margin:0 0 12px; color:var(--ink-soft); font-size:15.5px; max-width:68ch}
+.proj .tags{display:flex; flex-wrap:wrap; gap:6px 8px; font-family:ui-sans-serif,system-ui,sans-serif}
+.proj .tag2{
+  font-size:11.5px; letter-spacing:.03em; color:var(--ink-faint);
+  border:1px solid var(--rule-soft); border-radius:20px; padding:3px 10px; background:var(--bg);
+}
+.proj .when{
+  position:absolute; top:20px; right:22px; font:12px/1 ui-sans-serif,system-ui,sans-serif;
+  color:var(--ink-faint); font-variant-numeric:tabular-nums;
+}
+@media (max-width:620px){ .proj .when{position:static; display:block; margin-bottom:9px} }
+</style>
+
+<script>
+window.MathJax={
+  tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']],processEscapes:true},
+  options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']},
+  chtml:{scale:0.98}
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
+
+</head>
+<body>
+<div class="setbar">
+  <div class="wrap">
+    <a class="home" href="index.html">&#8962; <span>Anupam Dwivedi — Project Portfolio</span></a>
+    <div class="jump"><a href="02-cross-language-brain-alignment.html" rel="prev">&larr; <span class="lbl2">Cross-Language Brain Alignment</span></a><a href="04-spectral-soil-modeler.html" rel="next"><span class="lbl2">Spectral Soil Modeler</span> &rarr;</a></div>
+    <span class="pos">3 / 6</span>
+  </div>
+</div>
+
+<header class="mast">
+  <div class="wrap">
+    <div class="kicker">Project 03 &nbsp;·&nbsp; RL × Game Theory × Mechanism Design</div>
+    <h1>Algorithmic Collusion Detection via Incentive-Compatible Audits</h1>
+    <p class="standfirst">Pricing algorithms learn to collude without ever communicating. Rather than hunting for the pattern, this project designs an audit that makes hiding more expensive than being caught — and proves where that threshold lies.</p>
+    <div class="meta">
+        <span><b>Period</b> Mar – Apr 2026</span>
+        <span><b>Repository</b> <a href="https://github.com/a-n-u-p-a-m/Game_Theory_Usecase">Game_Theory_Usecase</a></span>
+        <span><b>Stack</b> Python · NumPy · SciPy · Matplotlib · Seaborn · Streamlit</span>
+        <span><b>Scale</b> ~5,500 lines · 28 result figures · 7-seed confidence intervals</span>
+        <span><b>Builds on</b> Calvano, Calzolari, Denicolò &amp; Pastorello (AER, 2020)</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="shell">
+    <nav class="toc" aria-label="Contents">
+      <div class="lbl">Contents</div>
+      <ol>
+        <li><a href="#problem">The problem: collusion without a conspiracy</a></li>
+        <li><a href="#rl-primer">The learning agents, from first principles</a></li>
+        <li><a href="#environment">The market model</a></li>
+        <li><a href="#mechanism">The audit mechanism</a></li>
+        <li><a href="#theory">The core theory: mimicry, T*, and the IC condition</a></li>
+        <li><a href="#theorem3">Theorem 3: mimicry damages the algorithm itself</a></li>
+        <li><a href="#extensions">Extensions: imperfect mimicry and adaptive audits</a></li>
+        <li><a href="#significance">Why this matters</a></li>
+        <li><a href="#limits">Limits</a></li>
+        <li><a href="#repro">Repository and reproduction</a></li>
+      </ol>
+      <div class="sibs">
+        <div class="lbl">The other projects</div>
+        <ul>
+          <li><a href="01-tgn-mechanistic-interpretability.html"><span class="n">01</span>Reverse-Engineering a TGN</a></li>
+          <li><a href="02-cross-language-brain-alignment.html"><span class="n">02</span>Cross-Language Brain Alignment</a></li>
+          <li><a href="03-algorithmic-collusion-audit-mechanism.html" aria-current="page"><span class="n">03</span>Algorithmic Collusion Audits</a></li>
+          <li><a href="04-spectral-soil-modeler.html"><span class="n">04</span>Spectral Soil Modeler</a></li>
+          <li><a href="05-detection-of-computer-generated-text.html"><span class="n">05</span>Detecting Machine Text</a></li>
+          <li><a href="06-hate-speech-and-counter-speech.html"><span class="n">06</span>Hate &amp; Counter Speech</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main>
+<section>
+<h2 id="problem"><span class="num">01</span>The problem: collusion without a conspiracy</h2>
+
+<p class="lede">Antitrust law, almost everywhere, prohibits <em>agreements</em> to fix prices. Two independent reinforcement-learning agents can learn to charge supracompetitive prices, punish each other for undercutting, and sustain the arrangement indefinitely — without exchanging a single message. There is no agreement to find, because there never was one.</p>
+
+<p>Calvano, Calzolari, Denicolò and Pastorello established this empirically in the <em>American Economic Review</em> in 2020. Two tabular Q-learning agents, each seeing only prices and its own profits, converge to prices near the joint-monopoly level and — the part that makes it genuinely collusive rather than merely high-priced — they develop <strong>punishment strategies</strong>. Defect by undercutting, and your rival's prices fall for several periods before both climb back. That reward-and-punishment structure is the signature of a collusive equilibrium, and it emerged from nothing but independent profit maximisation.</p>
+
+<p>This creates a gap that is legal before it is technical. Most jurisdictions require proof of concerted action: a meeting, a message, a shared commitment. Two companies that each deploy a pricing algorithm, never speak, and end up charging monopoly prices have committed no detectable offence under that framing — and both would pass a discovery process clean, because there is genuinely nothing to find.</p>
+
+<h3>Why pattern detection is the wrong tool</h3>
+
+<p>The instinctive response is a classifier: feed in price series, learn what collusion looks like, flag it. Three objections, and the third is fatal.</p>
+
+<ol>
+<li><strong>No labels.</strong> Algorithmic collusion has essentially never been successfully prosecuted, so there is no corpus of confirmed positives to train on.</li>
+<li><strong>Observational equivalence.</strong> Parallel high prices arise from collusion, from a cost shock, from genuine product differentiation, or from a market that is simply concentrated. The price series alone does not separate them.</li>
+<li><strong>Adaptivity.</strong> This is the one that kills it. A detector is a fixed function of observable behaviour. Any sufficiently flexible learning agent can be trained against it and will learn to produce behaviour the detector rates as competitive while remaining collusive. The regulator is then in an arms race it structurally loses, because the firm optimises against a known, static target.</li>
+</ol>
+
+<div class="note">
+<span class="tag">The reframe</span>
+<p>The project's move is to stop asking <em>"can I recognise collusion?"</em> and start asking <em>"can I design a situation in which hiding it costs more than being caught?"</em></p>
+<p>That is a mechanism design question, not a classification one, and it inverts the adversarial dynamic. A detector gets weaker as the adversary gets smarter. A well-designed mechanism gets <em>stronger</em>, because a smarter adversary is better at computing that evasion does not pay.</p>
+</div>
+</section>
+
+
+<section>
+<h2 id="rl-primer"><span class="num">02</span>The learning agents, from first principles</h2>
+
+<p class="lede">Everything about the audit depends on what the agents are doing, so it is worth being precise about the algorithms and the one distinction between them that turns out to have economic consequences.</p>
+
+<h3>The reinforcement learning setup</h3>
+
+<p>An agent in state \(s\) takes action \(a\), receives reward \(r\), and lands in state \(s'\). It wants to maximise discounted future reward \(\sum_t \delta^t r_t\), where \(\delta \in [0,1)\) is how much it values the future. The <strong>action-value function</strong> \(Q(s,a)\) is the expected discounted return from taking \(a\) in \(s\) and behaving optimally thereafter, and it satisfies the Bellman optimality equation:</p>
+
+<div class="eq">
+\[
+Q^{*}(s,a) \;=\; \mathbb{E}\Big[\, r + \delta \max_{a'} Q^{*}(s', a') \,\Big]
+\]
+</div>
+
+<p>This is a fixed-point equation, and the contraction mapping theorem guarantees a unique solution — the discount factor \(\delta < 1\) is what makes the Bellman operator a contraction. Q-learning finds it by stochastic approximation: sample a transition, compute the <em>temporal-difference error</em> between the current estimate and the bootstrapped target, and step toward it.</p>
+
+<div class="eq">
+\[
+Q(s,a) \;\leftarrow\; (1-\alpha)\,Q(s,a) \;+\; \alpha\underbrace{\Big[\,r + \delta \max_{a'} Q(s',a')\,\Big]}_{\text{TD target}}
+\]
+</div>
+
+<p>with \(\alpha = 0.15\) the step size and \(\delta = 0.95\) the discount factor.</p>
+
+<h3>The state is what makes collusion learnable</h3>
+
+<p>The state here is <strong>the previous period's full action profile</strong> — what every firm charged last period. This is not an incidental modelling choice; it is the precondition for the entire phenomenon.</p>
+
+<p>With a memoryless state, an agent's policy is a single price and nothing else; it cannot condition on history, so it cannot punish, and without punishment the one-shot Nash equilibrium is the only outcome. With one period of memory, an agent can learn a rule of the form "if my rival undercut last period, charge low this period" — a trigger strategy. That is the minimal machinery a folk-theorem equilibrium requires, and it is exactly what Calvano's agents discover.</p>
+
+<p>The cost is the state space: \(k^n\) states per agent, so \(15^2 = 225\) for the duopoly and \(12^3 = 1728\) for \(n=3\). The Q-table is \((n, k, \ldots, k, k)\), and this exponential growth in \(n\) is the hard ceiling on tabular methods — hence \(k\) dropping from 15 to 12 when \(n\) goes from 2 to 3.</p>
+
+<h3>Exploration: ε-greedy with exponential decay</h3>
+
+<div class="eq">\[ \varepsilon(t) = e^{-\beta t}, \qquad \beta = 4\times10^{-6} \]</div>
+
+<p>With probability \(\varepsilon(t)\) the agent picks a uniformly random price; otherwise it takes the greedy action. The decay rate sets the entire timescale of the experiment: \(\varepsilon\) falls to 0.5 at \(t = \ln 2/\beta \approx 173{,}000\) periods and to 0.01 at \(t \approx 1.15\) million. Convergence is observed around 1.5–2.5 million periods, which is exactly when exploration has become negligible.</p>
+
+<p>This is why <code>tmax</code> is 5 million rather than something more comfortable. The schedule must be slow enough that every state–action pair is visited many times before exploration stops — the convergence guarantee for Q-learning requires infinite visits to every pair — and that requirement, not compute availability, sets the run length.</p>
+
+<h3>SARSA, and the distinction that has economic consequences</h3>
+
+<p>SARSA uses the same update except for the target:</p>
+
+<div class="eq">
+\[
+\text{Q-learning:}\;\; r + \delta \max_{a'} Q(s',a')
+\qquad\qquad
+\text{SARSA:}\;\; r + \delta\, Q(s', a'_{\text{actual}})
+\]
+</div>
+
+<p>Q-learning bootstraps from the <em>best available</em> action regardless of what is played; SARSA bootstraps from the action <em>actually taken</em>, exploration included. This is the <strong>off-policy / on-policy</strong> distinction: Q-learning learns the value of the optimal policy while following an exploratory one; SARSA learns the value of the policy it is actually following.</p>
+
+<p>The textbook consequence is that SARSA is more conservative near costly mistakes, because it accounts for the fact that it will sometimes explore into them. In §6 this distinction produces a concrete, quantified difference in how much a forced deviation damages each agent — <strong>the on/off-policy choice becomes an economically measurable property</strong>, which is an unusually direct demonstration of an abstract RL concept mattering.</p>
+
+<div class="note plain">
+<span class="tag">Design decision: tabular Q-learning, not deep RL</span>
+<p>Modern pricing systems use function approximation. This project uses a lookup table, deliberately.</p>
+<p><strong>For:</strong> tabular Q-learning has <em>convergence guarantees</em> under standard conditions — with a neural approximator there are none, and an observed equilibrium could be an artefact of the approximator. The Q-table is also fully inspectable: the audit mechanism reads greedy actions directly out of it (<code>np.argmax(game.Q[(n,) + tuple(state)])</code>), and <code>find_greedy_equilibrium_state()</code> iterates the greedy map to a fixed point — operations that have no clean equivalent for a network. And it replicates Calvano exactly, so the baseline is a known quantity rather than a new result.</p>
+<p><strong>Against:</strong> the state space is \(k^n\), so this does not extend past three or four firms, and real pricing systems observe far richer state (inventory, demand forecasts, competitor features) than a discretised action profile.</p>
+<p><strong>The judgement:</strong> the project's contribution is a theorem about incentives plus an empirical verification that RL agents obey it. A theorem about \(C_{\text{mimic}}(T)\) versus \(p(T)F\) does not depend on how the policy is represented. Tabular is the right choice for isolating the mechanism; the qualitative results should carry to deep RL while the specific \(T^*\) values will not.</p>
+</div>
+</section>
+
+
+<section>
+<h2 id="environment"><span class="num">03</span>The market model</h2>
+
+<h3>Logit demand, and where it comes from</h3>
+
+<p>Firms set prices simultaneously and repeatedly. Demand follows a multinomial logit:</p>
+
+<div class="eq">
+\[
+q_i(\mathbf{p}) \;=\; \frac{\exp\!\big((a_i - p_i)/\mu\big)}{\sum_{j=1}^{n}\exp\!\big((a_j - p_j)/\mu\big) \;+\; \exp(a_0/\mu)}
+\qquad
+\pi_i = (p_i - c_i)\,q_i
+\]
+</div>
+
+<p>This is not an arbitrary functional form. It is the <strong>aggregate of a random utility model</strong>: suppose each consumer's utility from product \(i\) is \(u_i = (a_i - p_i)/\mu + \epsilon_i\) with \(\epsilon_i\) drawn i.i.d. from a Gumbel distribution, and each consumer buys whichever product maximises their utility. The probability that product \(i\) wins is exactly the expression above — a result due to McFadden, and the reason logit demand is the workhorse of empirical industrial organisation.</p>
+
+<p>The parameters have direct interpretations: \(a_i\) is product quality, \(c_i\) marginal cost, \(a_0\) the value of buying nothing, and \(\mu\) the scale of the taste shocks. As \(\mu \to 0\) idiosyncratic taste vanishes, every consumer buys the cheapest product, and the model collapses toward textbook Bertrand with its stark zero-profit equilibrium. The defaults reproduce Calvano exactly for \(n=2\): \(c=1\), \(a=2\), \(a_0=0\), \(\mu=0.25\).</p>
+
+<div class="note plain">
+<span class="tag">Why logit rather than linear or Cournot</span>
+<p><strong>Linear demand</strong> (\(q_i = \alpha - \beta p_i + \gamma p_j\)) is simpler but admits negative quantities at high prices, requiring an awkward truncation that puts a kink in the profit surface exactly where a learning agent explores.</p>
+<p><strong>Pure Bertrand with homogeneous goods</strong> has the famous discontinuity: undercut by any amount and capture the entire market. A learning agent faces a profit surface with a cliff, and the equilibrium is the degenerate price-equals-cost outcome where there is no collusive surplus to detect.</p>
+<p><strong>Cournot</strong> (quantity competition) is a different market structure entirely and does not match the pricing-algorithm setting.</p>
+<p><strong>Logit</strong> gives differentiated products, a smooth and everywhere-differentiable best-response surface, strictly positive equilibrium profits — so there <em>is</em> a collusive surplus — and a single parameter \(\mu\) that tunes competitive intensity. The smoothness matters specifically for RL: a discontinuous payoff makes Q-value estimates near the discontinuity extremely high-variance.</p>
+</div>
+
+<h3>The two reference equilibria</h3>
+
+<p>Everything downstream is measured against two price vectors, each found by solving first-order conditions numerically with <code>scipy.optimize.fsolve</code>.</p>
+
+<h4>Nash (competitive): each firm maximises its own profit</h4>
+
+<div class="eq">
+\[
+\frac{\partial \pi_i}{\partial p_i} = 0
+\quad\Longleftrightarrow\quad
+1 - \frac{(p_i - c_i)(1 - q_i)}{\mu} = 0
+\]
+</div>
+
+<h4>Monopoly (fully collusive): firms maximise joint profit</h4>
+
+<div class="eq">
+\[
+\frac{\partial}{\partial p_i}\sum_j \pi_j = 0
+\quad\Longleftrightarrow\quad
+1 - \frac{(p_i - c_i)(1 - q_i)}{\mu} + \frac{1}{\mu}\sum_{j \neq i}(p_j - c_j)\,q_j = 0
+\]
+</div>
+
+<p>The difference is the final sum, and it is the entire economics of collusion in one term. Under Nash, raising \(p_i\) pushes customers to rivals and firm \(i\) counts that as pure loss. Under joint maximisation, those customers are <em>still inside the cartel</em>, so the diverted profit \(\sum_{j\neq i}(p_j - c_j)q_j\) is added back. That externality — each firm's price cut imposes a cost on its rivals that it does not internalise — is why monopoly prices exceed Nash prices, and it is the general reason cartels exist.</p>
+
+<p>Both are solved numerically rather than in closed form because the logit FOCs are transcendental: \(q_i\) appears on both sides through the exponentials, so no algebraic rearrangement isolates \(p_i\). <code>fsolve</code> wraps MINPACK's hybrid Powell method, which needs no analytic Jacobian.</p>
+
+<h3>The price grid</h3>
+
+<p>Prices are discretised into \(k\) levels spanning Nash to monopoly, with one extra level of headroom at each end:</p>
+
+<pre><code>inner = np.linspace(np.min(p_nash), np.max(p_mono), k - 2)
+d = inner[1] - inner[0]
+return np.linspace(inner[0] - d, inner[-1] + d, k)</code></pre>
+
+<p>The headroom is a deliberate guard against a measurement artefact. If the grid's maximum were exactly the monopoly price, an agent converging to the top of the grid would be indistinguishable from an agent that <em>wants</em> to go higher but cannot — and the collusion index would saturate at 1.0 for reasons of discretisation rather than economics. The extra level at each end makes "converged to monopoly" a genuine interior outcome.</p>
+
+<h3>The collusion index</h3>
+
+<div class="eq">
+\[
+\Delta \;=\; \frac{\pi - \pi^{\text{Nash}}}{\pi^{\text{Monopoly}} - \pi^{\text{Nash}}}
+\]
+</div>
+
+<p>\(\Delta = 0\) is perfect competition, \(\Delta = 1\) is perfect cartel. Normalising this way makes outcomes comparable across parameterisations, which raw prices are not, and it is Calvano's own metric so the replication is directly checkable.</p>
+
+<h3>Q-table initialisation</h3>
+
+<p>A detail that matters more than it looks. Rather than zeros or random values, each entry is initialised to the profit of that action <em>averaged over all opponent action combinations</em>, discounted to perpetuity:</p>
+
+<div class="eq">
+\[
+Q_i(s, a) \;\leftarrow\; \frac{\overline{\pi_i(a)}}{1 - \delta}
+\]
+</div>
+
+<p>Zero initialisation would make every action look equally bad at the start, so early learning would be dominated by whichever action the exploration schedule happened to try first. Optimistic initialisation (large positive values everywhere) would force systematic exploration — sometimes desirable, but it changes the exploration dynamics in a way that departs from the paper being replicated. Averaging over opponent actions gives a sensible prior that encodes the payoff structure without presuming anything about what the rival will do.</p>
+
+<h3>Replication results</h3>
+
+<div class="tablewrap">
+<table>
+<caption>From <code>results/all_results.json</code></caption>
+<thead><tr><th>Configuration</th><th class="num">Collusion index Δ</th><th class="num">π<sub>collusive</sub></th><th class="num">π<sub>Nash</sub></th><th class="num">Convergence</th><th class="num">HHI</th></tr></thead>
+<tbody>
+<tr><td>n=2, Q-learning</td><td class="num">0.922</td><td class="num">0.3286</td><td class="num">0.2229</td><td class="num">1,682,746</td><td class="num">3,638</td></tr>
+<tr><td>n=2, SARSA</td><td class="num">0.996</td><td class="num">0.3370</td><td class="num">0.2229</td><td class="num">1,474,342</td><td class="num">3,383</td></tr>
+<tr><td>n=3, Q-learning</td><td class="num">0.204</td><td class="num">0.1467</td><td class="num">0.1202</td><td class="num">2,507,796</td><td class="num">4,047</td></tr>
+<tr><td>n=3, SARSA</td><td class="num">0.806</td><td class="num">0.1263</td><td class="num">0.1202</td><td class="num">2,423,644</td><td class="num">3,940</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The duopoly results replicate Calvano cleanly: \(\Delta = 0.92\) and \(0.996\) are near-total collusion, reached by agents that cannot communicate. Across seven seeds the duopoly means are \(\Delta = 0.805 \pm 0.144\) (Q-learning) and \(0.758 \pm 0.214\) (SARSA), with 100% convergence in every configuration.</p>
+
+<p>The \(n=3\) figures are more variable — the single-seed Q-learning run at \(\Delta = 0.204\) looks like a failure to collude, but the seven-seed mean is \(0.721 \pm 0.236\), so that run is a low draw rather than a finding. This is exactly why the multi-seed CI block exists in the results file, and a good illustration of why single-run numbers in this literature deserve suspicion.</p>
+
+<p>Convergence is declared when the greedy policy is unchanged for \(10^5\) consecutive periods. The implementation tracks this with a neat trick — <code>stable = (stable + same) * same</code> — which increments on stability and multiplies by zero, resetting instantly, on any change.</p>
+
+<p>The project also computes <strong>consumer surplus</strong> via the logit log-sum formula \(CS = \mu \ln\!\big(\sum_j e^{(a_j - p_j)/\mu} + e^{a_0/\mu}\big)\) — the exact expected-maximum-utility expression for a Gumbel random utility model, not an approximation — and the <strong>Herfindahl–Hirschman index</strong>. Both are reported because they are the units competition authorities actually work in: a finding stated in model profit units is not actionable, and one stated in consumer surplus and HHI is.</p>
+</section>
+
+
+<section>
+<h2 id="mechanism"><span class="num">04</span>The audit mechanism</h2>
+
+<h3>What mechanism design is</h3>
+
+<p>Game theory as usually taught takes the rules as given and asks what players will do. Mechanism design inverts it: <em>given</em> the outcome you want, design rules under which self-interested players produce it voluntarily. It is sometimes called reverse game theory.</p>
+
+<p>Two concepts carry the weight here:</p>
+
+<ul>
+<li><strong>Incentive compatibility.</strong> A mechanism is IC if truthful behaviour is in each player's own interest. The point is that it needs no enforcement — a firm that reveals its collusive pricing under this audit does so because lying costs more, not because it is required to.</li>
+<li><strong>Dominant strategies.</strong> An action is dominant if it is best <em>regardless</em> of what anyone else does. This is much stronger than Nash equilibrium, which only requires best-response to the <em>equilibrium</em> behaviour of others. Theorem 1 establishes <em>weak</em> dominance, which matters: the firm does at least as well revealing as mimicking no matter what its rival does, so the result does not depend on coordinating expectations.</li>
+</ul>
+
+<p>The mechanism is a triple \(\mathcal{M} = (T, \tau, F)\):</p>
+
+<div class="deck">
+<div class="card"><div class="k">T</div><div class="v">audit duration</div><div class="d">how many periods a synthetic competitive entrant, priced at marginal cost, is injected into the market</div></div>
+<div class="card"><div class="k">τ</div><div class="v">detection threshold</div><div class="d">how far above the Nash benchmark a firm's price must sit to count as a signal</div></div>
+<div class="card"><div class="k">F</div><div class="v">expected fine</div><div class="d">the penalty imposed, in present-value terms, on a firm that is flagged</div></div>
+</div>
+
+<h3>The intervention</h3>
+
+<p>For \(T\) periods, a synthetic entrant priced at \(p_e = c\) joins the market. It does not learn and is not part of the state space — it enters only through the logit denominator:</p>
+
+<div class="eq">
+\[
+\pi_i \;=\; (p_i - c_i)\cdot\frac{\exp\!\big((a_i - p_i)/\mu\big)}{\sum_{j}\exp\!\big((a_j - p_j)/\mu\big) + \underbrace{\exp\!\big((\bar a - c)/\mu\big)}_{\text{entrant}} + \exp(a_0/\mu)}
+\]
+</div>
+
+<p>Keeping the entrant out of the state space is deliberate: adding it would multiply the state space by \(k\) and change the learning problem the incumbents face, confounding the audit's effect with a change in their environment's dimensionality. As a non-learning price-taker it is a pure demand-side shock.</p>
+
+<p>This is a genuine shock, not a measurement. A marginal-cost competitor makes supracompetitive pricing actively costly — every period the incumbents keep prices high, the entrant takes share. Critically, the incumbents' Q-tables are <strong>updated during the audit</strong> on these entrant-adjusted profits, so they experience the new environment rather than merely being observed in it. That detail becomes the subject of Theorem 3.</p>
+
+<h3>Calibrating τ from data, not from a guess</h3>
+
+<p>A detection threshold pulled from the air determines the result. <code>calibrate_audit_tau()</code> derives it from two empirical signal distributions, each sampled 1,600 times:</p>
+
+<ul>
+<li><strong>Competitive proxy</strong> — Nash actions plus implementation noise (σ = 5% of the grid), modelling a genuinely competitive firm that cannot hit Nash exactly.</li>
+<li><strong>Collusive proxy</strong> — greedy actions from the converged Q-table near the equilibrium state, with jitter and 1% exploration.</li>
+</ul>
+
+<p>The threshold is anchored above the competitive tail and below the collusive mass:</p>
+
+<div class="eq">
+\[
+\tau = \mathrm{clip}\Big(\max\big(q_{0.99}^{\text{comp}} + m,\;\tfrac{1}{2}(q_{0.99}^{\text{comp}} + q_{0.20}^{\text{coll}})\big),\; \tau_{\min},\; \tau_{\max}\Big)
+\]
+</div>
+
+<p>Anchoring on the <strong>99th percentile</strong> of the competitive distribution is a deliberate false-positive control: it targets roughly a 1% rate of wrongly flagging a genuinely competitive firm. For a regulatory instrument that triggers an investigation, that asymmetry is the right one — the cost of a false accusation is not symmetric with the cost of a missed cartel. The \(\max\) with the midpoint is a floor preventing \(\tau\) from sitting right on the competitive tail, and the final clip keeps it in \([0.02, 0.50]\) so a degenerate calibration cannot produce a threshold that flags everything or nothing.</p>
+
+<div class="tablewrap">
+<table>
+<caption>Calibration output for n=2 Q-learning — the separation the mechanism relies on</caption>
+<thead><tr><th>Quantity</th><th class="num">Value</th></tr></thead>
+<tbody>
+<tr><td>Competitive gap, mean ± σ</td><td class="num">0.0080 ± 0.0130</td></tr>
+<tr><td>Collusive gap, mean ± σ</td><td class="num">0.1166 ± 0.0877</td></tr>
+<tr><td>\(q_{0.99}\) competitive</td><td class="num">0.0565</td></tr>
+<tr><td>\(q_{0.20}\) collusive</td><td class="num">0.0377</td></tr>
+<tr><td><strong>Calibrated τ</strong></td><td class="num"><strong>0.0665</strong></td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The collusive signal is about <strong>14× larger</strong> in mean than the competitive one. The distributions do overlap — the collusive 20th percentile sits below the competitive 99th — which is precisely why a single period of observation is not enough and why \(T\) has to be chosen rather than assumed.</p>
+
+<p>Two further robustness settings appear in the run metadata and both reduce false positives: detection uses the <em>mean</em> price gap rather than the max (less sensitive to a single exploratory price), and requires <strong>2 consecutive</strong> threshold crossings before flagging. Under 1% exploration, the probability of two consecutive exploratory spikes is roughly \(10^{-4}\) rather than \(10^{-2}\).</p>
+
+<h3>The detection curve p(T)</h3>
+
+<p>\(p(T)\) is the probability that an audit of length \(T\) flags a collusive firm, measured by Monte Carlo: 350 trials per \(T\), across seven seeds, 50 runs per seed for the confidence intervals.</p>
+
+<div class="tablewrap">
+<table>
+<caption>Empirical p(T), n=2 Q-learning</caption>
+<thead><tr><th class="num">T</th><th class="num">1</th><th class="num">2</th><th class="num">3</th><th class="num">4</th><th class="num">5</th><th class="num">6</th><th class="num">7+</th></tr></thead>
+<tbody>
+<tr><td>p(T)</td><td class="num">0.513</td><td class="num">0.513</td><td class="num">0.562</td><td class="num">0.874</td><td class="num">0.956</td><td class="num">0.999</td><td class="num">1.000</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Detection saturates by \(T = 7\). A collusive firm that does not change its behaviour is caught almost immediately — unsurprising, and not the interesting case. The interesting case is the firm that <em>does</em> change its behaviour, which is §5.</p>
+
+<div class="note plain">
+<span class="tag">Two statistical details in the p(T) estimator</span>
+<p><strong>Isotonic regression.</strong> \(p(T)\) must be non-decreasing — a longer audit cannot be less likely to detect, since detection is checked every period and the flag is absorbing. Monte Carlo noise violates this, so the measured curve is projected onto the monotone cone using the Pool Adjacent Violators Algorithm, applied to the mean and both CI bounds.</p>
+<p>PAVA works by scanning for adjacent pairs that violate monotonicity and merging them into a weighted-average block, repeating until none remain. The result is the <em>maximum-likelihood estimate subject to the known monotonicity constraint</em> — so this adds genuine information rather than merely smoothing. Imposing a constraint you know to be true is free statistical efficiency, which is why the projection is principled where a moving average would not be.</p>
+<p><strong>Per-run Q-table isolation.</strong> Each audit trial starts from <code>game.Q.copy()</code>. Without this, learning from trial \(k\) would leak into trial \(k+1\) and the "independent" Monte Carlo samples would be a single long correlated run — the estimated \(p(T)\) would be a trajectory, not a distribution.</p>
+</div>
+
+<p>The project also fits the parametric form \(p(T) = 1 - e^{-T/\tau_{\text{scale}}}\) — the CDF of an exponential, the natural model for a constant per-period hazard of detection — and finds \(\tau_{\text{scale}} \approx 1.5\) fits the data, against the Calvano-era assumption of \(\tau = 50\) (very slow detection). It reports MSE for both and the \(R^2\) of the fit rather than silently swapping the constant, which matters because \(T^*\) depends on \(p(T)\) and a 33-fold change in the detection timescale would change every downstream number.</p>
+</section>
+
+
+<section>
+<h2 id="theory"><span class="num">05</span>The core theory: mimicry, T*, and the IC condition</h2>
+
+<p>Here is the strategic problem from the firm's side. An audit begins. The firm knows it is being audited. It has two options:</p>
+
+<ul>
+<li><strong>Keep colluding.</strong> Earn \(\pi_c\) each period, and get flagged with probability \(p(T)\), paying expected fine \(p(T)\cdot F\).</li>
+<li><strong>Mimic competition.</strong> Drop to Nash pricing for \(T\) periods, earn only \(\pi_n\), avoid detection entirely, then resume colluding.</li>
+</ul>
+
+<h3>The mimicry cost</h3>
+
+<div class="eq">
+\[
+C_{\text{mimic}}(T) \;=\; \sum_{t=1}^{T}\delta^{t}\,(\pi_c - \pi_n)
+\;=\;(\pi_c - \pi_n)\cdot\frac{\delta\,(1 - \delta^{T})}{1 - \delta}
+\]
+</div>
+
+<p>A geometric sum, discounted from period 1 rather than 0 because the cost begins one period after the decision. Two properties matter:</p>
+
+<ul>
+<li><strong>Strictly increasing in \(T\).</strong> Every extra audit period is another period of forgone surplus.</li>
+<li><strong>Bounded above.</strong> As \(T \to \infty\), \(C_{\text{mimic}} \to (\pi_c - \pi_n)\,\delta/(1-\delta)\). This ceiling is the present value of <em>all</em> future collusive surplus, and it is the single most consequential fact in the analysis — it means there is a fine above which no finite audit can make mimicry unattractive.</li>
+</ul>
+
+<h3>Theorem 1 — the minimum audit duration</h3>
+
+<div class="note">
+<span class="tag">Theorem 1</span>
+<p>Define
+\[
+T^{*} \;=\; \min\big\{\,T \in \mathbb{N} \;:\; C_{\text{mimic}}(T) \;\ge\; p(T)\cdot F \,\big\}.
+\]
+For any audit of length \(T \ge T^{*}\), mimicry is weakly dominated: the firm's best response is to reveal its collusive pricing truthfully. The mechanism is incentive-compatible.</p>
+</div>
+
+<h4>Proof</h4>
+
+<p>Let \(V_c\) denote the continuation value of collusion from the end of the audit onward — identical under both strategies, since the firm resumes colluding either way. Then:</p>
+
+<div class="eq">
+\[
+\begin{aligned}
+U(\text{collude through the audit}) &= \sum_{t=1}^{T}\delta^t \pi_c \;-\; p(T)\,F \;+\; \delta^T V_c\\[4pt]
+U(\text{mimic}) &= \sum_{t=1}^{T}\delta^t \pi_n \;-\; 0 \;+\; \delta^T V_c
+\end{aligned}
+\]
+</div>
+
+<p>Subtracting, the continuation terms cancel:</p>
+
+<div class="eq">
+\[
+U(\text{collude}) - U(\text{mimic}) \;=\; \underbrace{\sum_{t=1}^{T}\delta^t(\pi_c - \pi_n)}_{C_{\text{mimic}}(T)} \;-\; p(T)\,F
+\]
+</div>
+
+<p>So colluding through the audit is weakly preferred precisely when \(C_{\text{mimic}}(T) \ge p(T)\,F\). Since \(C_{\text{mimic}}\) is strictly increasing in \(T\) and \(p(T)\) is non-decreasing and bounded above by 1, the set \(\{T : C_{\text{mimic}}(T) \ge p(T)F\}\) is upward-closed whenever it is non-empty, and \(T^*\) is its minimum. \(\square\)</p>
+
+<p>The cancellation of \(\delta^T V_c\) is what makes the proof clean, and it encodes a real assumption: the firm's post-audit prospects are the same either way. That holds if the audit is a one-off event with no reputational consequence. If being caught also triggered future scrutiny, \(V_c\) would differ between branches and the threshold would shift — in the regulator's favour.</p>
+
+<p>The economic content is a trap with no exit. At \(T \ge T^*\), the firm faces a genuine dilemma:</p>
+
+<ul>
+<li><strong>Reveal</strong> — keep prices high, get detected, get fined. The regulator wins the enforcement case.</li>
+<li><strong>Hide</strong> — hold prices at marginal cost for at least \(T^*\) periods. But that <em>is</em> competition. Consumers get competitive prices for the entire audit window, which is what the regulator wanted in the first place.</li>
+</ul>
+
+<p>Both branches are regulatory successes. The firm cannot pick a third.</p>
+
+<h3>Theorem 2 — comparative statics</h3>
+
+<div class="note">
+<span class="tag">Theorem 2</span>
+<p>(i) \(\partial T^{*}/\partial \delta \le 0\) — more patient firms require <em>shorter</em> audits.<br>
+(ii) \(\partial T^{*}/\partial F \ge 0\) — larger fines require <em>longer</em> audits.</p>
+</div>
+
+<h4>Proof</h4>
+
+<p>Apply the implicit function theorem to the crossing condition \(G(T;\delta,F) \equiv C_{\text{mimic}}(T) - p(T)F = 0\). The IFT states that if \(G\) is continuously differentiable and \(\partial G/\partial T \neq 0\), then the solution \(T^*(x)\) is differentiable with</p>
+
+<div class="eq">\[ \frac{\partial T^*}{\partial x} = -\frac{\partial G/\partial x}{\partial G/\partial T} \]</div>
+
+<p>Since \(\partial G/\partial T > 0\) by the monotonicity established above, the sign of \(\partial T^*/\partial x\) is the opposite of the sign of \(\partial G/\partial x\).</p>
+
+<p><strong>For \(\delta\):</strong> \(\partial C_{\text{mimic}}/\partial \delta > 0\), since a patient firm weights the forgone future surplus more heavily. So \(\partial G/\partial \delta > 0\) and \(\partial T^*/\partial \delta \le 0\).</p>
+
+<p><strong>For \(F\):</strong> \(\partial G/\partial F = -p(T) \le 0\), hence \(\partial T^*/\partial F \ge 0\). \(\square\)</p>
+
+<p>(Strictly, \(T^*\) is integer-valued so it is a step function of \(\delta\) and \(F\); the IFT argument applies to the continuous relaxation and the monotonicity carries to the integer minimum. The code verifies the discrete statement directly by finite differences over \(\delta \in [0.5, 0.99]\) and \(F \in [0.1, 3.0]\), checking monotonicity at every grid point. Both parts verify.)</p>
+
+<p>Part (ii) is the counterintuitive one and it has real policy content. <strong>Raising the fine makes detection harder, not easier.</strong> A larger \(F\) makes evasion more attractive relative to its cost, so the audit must run longer to close the gap. A regulator who increases penalties without extending audit windows may reduce enforcement effectiveness — the opposite of the intended effect.</p>
+
+<p>Part (i) is equally counterintuitive and equally useful: the most strategically sophisticated firms, the ones that weight the future most heavily, are the <em>easiest</em> to trap, because they have the most to lose from an extended period of competitive pricing.</p>
+
+<h3>The Goldilocks zone</h3>
+
+<p>Two fine thresholds partition the policy space, both derived in <code>src/policy.py</code>:</p>
+
+<div class="eq">
+\[
+F_{\min} = \frac{(\pi_c - \pi_n)\,\delta}{1-\delta}
+\qquad\qquad
+F_{\text{crit}} = \frac{(\pi_c - \pi_n)\,\delta}{1 - e^{-1/\tau_{\text{scale}}}}
+\]
+</div>
+
+<p>\(F_{\min}\) is the ceiling of \(C_{\text{mimic}}\) — the present value of all future collusive surplus. \(F_{\text{crit}}\) is \(C_{\text{mimic}}(1)/p(1)\), the fine below which a one-period audit already suffices. Note \(F_{\text{crit}} < F_{\min}\) always.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Regime</th><th>Condition</th><th class="num">T*</th><th>Outcome</th></tr></thead>
+<tbody>
+<tr><td>Easy detection</td><td>\(F \le F_{\text{crit}}\)</td><td class="num">1</td><td><span class="pill">Win</span> any audit length works</td></tr>
+<tr><td>Calibrated detection</td><td>\(F_{\text{crit}} &lt; F &lt; F_{\min}\)</td><td class="num">&gt;1</td><td><span class="pill">Win if T ≥ T*</span> — <strong>the only failure mode in the whole scheme lives here</strong></td></tr>
+<tr><td>Deterrence</td><td>\(F \ge F_{\min}\)</td><td class="num">∞</td><td><span class="pill">Win</span> expected fine exceeds all future collusive surplus; the firm plays Nash permanently</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The structure deserves attention. The regulator has <em>two</em> distinct ways to win, and they work by opposite mechanisms. Below \(F_{\min}\), the firm will not mimic, so the audit detects it — enforcement. At or above \(F_{\min}\), the fine exceeds everything collusion could ever earn, so the firm never colludes at all — deterrence. Note that the deterrence branch relies on audits being <em>random or covert</em>: if the firm knew exactly when audits occur, it could collude between them. The only hole is the middle band combined with a too-short audit, which is a calibration failure and exactly what \(T^*\) exists to prevent.</p>
+
+<div class="tablewrap">
+<table>
+<caption>Measured thresholds, from the results file</caption>
+<thead><tr><th>Configuration</th><th class="num">F<sub>crit</sub></th><th class="num">F<sub>min</sub></th><th class="num">Ratio</th></tr></thead>
+<tbody>
+<tr><td>n=2, Q-learning</td><td class="num">0.206</td><td class="num">2.007</td><td class="num">9.7×</td></tr>
+<tr><td>n=2, SARSA</td><td class="num">0.223</td><td class="num">2.167</td><td class="num">9.7×</td></tr>
+<tr><td>n=3, Q-learning</td><td class="num">0.052</td><td class="num">0.504</td><td class="num">9.7×</td></tr>
+<tr><td>n=3, SARSA</td><td class="num">0.012</td><td class="num">0.117</td><td class="num">9.7×</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The constant 9.7× ratio is not a coincidence — dividing the two definitions cancels the shared \((\pi_c - \pi_n)\,\delta\) factor entirely, leaving
+\[
+\frac{F_{\min}}{F_{\text{crit}}} \;=\; \frac{1 - e^{-1/\tau_{\text{scale}}}}{1-\delta}
+\;=\; \frac{1 - e^{-1/1.5}}{1 - 0.95} \;=\; 9.73
+\]
+which depends on nothing but the detection timescale and the discount factor. The band's <em>width</em> scales with the collusive surplus while its <em>shape</em> is a property of the detection technology and the discount rate alone. Practically: the calibration zone spans an order of magnitude in fine size, wide enough that a regulator cannot stumble into the right \(T\) by luck.</p>
+
+<h3>Empirical T\*</h3>
+
+<div class="tablewrap">
+<table>
+<caption>Empirical T* across seven seeds (n=2, Q-learning)</caption>
+<thead><tr><th class="num">Fine F</th><th class="num">T* mean</th><th class="num">95% CI</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td class="num">0.30</td><td class="num">2.0</td><td class="num">[2.0, 2.0]</td><td>identical across all seeds</td></tr>
+<tr><td class="num">0.50</td><td class="num">3.71</td><td class="num">[2.79, 4.64]</td><td>the only configuration with seed variance</td></tr>
+<tr><td class="num">0.80</td><td class="num">10.0</td><td class="num">[10.0, 10.0]</td><td></td></tr>
+<tr><td class="num">1.00</td><td class="num">14.0</td><td class="num">[14.0, 14.0]</td><td></td></tr>
+<tr><td class="num">1.50</td><td class="num">27.0</td><td class="num">[27.0, 27.0]</td><td></td></tr>
+<tr><td class="num">2.00</td><td class="num">111.0</td><td class="num">[111.0, 111.0]</td><td>\(F_{\min} = 2.007\) — the blow-up</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>\(T^*\) rises monotonically in \(F\), confirming Theorem 2(ii) empirically, then explodes near \(F_{\min} = 2.007\): from 27 periods at \(F=1.5\) to 111 at \(F=2.0\). That divergence is the theory's prediction made visible. As \(F \to F_{\min}\), the required \(C_{\text{mimic}}(T)\) approaches its own asymptotic ceiling, so \(T^*\) must grow without bound.</p>
+
+<p>The practical corollary is sharp: <strong>fines should be set either comfortably below \(F_{\min}\) (where audits are short and detection works) or at/above it (where deterrence works outright) — never just beneath it</strong>, where the required audit length becomes impractical.</p>
+
+<p>Why do most rows have zero variance across seven seeds? Because \(T^*\) is an integer crossing point of a step function. Seed-to-seed variation in \(p(T)\) has to be large enough to move the crossing across an integer boundary to show up at all. \(F = 0.5\) is the one row where the crossing happens to sit near a boundary. This is a case where <strong>zero variance is a property of the estimator's discreteness, not evidence of unusual precision</strong> — worth saying, because an identical CI reported without that explanation invites the wrong inference.</p>
+</section>
+
+
+<section>
+<h2 id="theorem3"><span class="num">06</span>Theorem 3: mimicry damages the algorithm itself</h2>
+
+<p>Theorem 1 treats the firm as a rational agent that can switch strategies costlessly. An RL agent cannot. This is where the analysis departs from standard mechanism design and says something specific about algorithmic actors.</p>
+
+<h3>The mechanism of the damage</h3>
+
+<p>To mimic competition, the pricing algorithm must play Nash for \(T\) periods. But Q-learning does not have a "pretend" mode — it learns from whatever it experiences. Every mimicry period triggers a real Q-update:</p>
+
+<div class="eq">
+\[
+Q_i(s, a_{\text{Nash}}) \leftarrow (1-\alpha)Q_i(s,a_{\text{Nash}}) + \alpha\big[\pi_n + \delta\max_{a'}Q_i(s',a')\big]
+\]
+</div>
+
+<p>The agent is being told, repeatedly and with a learning rate of 0.15, that competitive pricing is what this state is worth. The collusive equilibrium encoded in the Q-table is <em>erased by the act of hiding it</em>. The firm therefore pays twice: once in forgone profit during the audit, and again in a recovery period afterwards while the algorithm relearns to collude.</p>
+
+<p>The agent could in principle avoid this by freezing learning during the audit. That is a strictly stronger adversary than the one modelled, and worth naming as a limitation — though it requires the firm to <em>know</em> it is being audited and to have built in a switch, which is both a detectable design feature and arguably evidence of intent.</p>
+
+<h3>The protocol</h3>
+
+<p><code>measure_rl_disruption()</code> implements this directly:</p>
+<ol>
+<li>Save the converged Q-table.</li>
+<li>Force Nash play for \(T_{\text{mimic}}\) periods <strong>with Q-learning active</strong>.</li>
+<li>Resume greedy play; count periods until the average price returns to within 95% of the original collusive level.</li>
+<li>Accumulate the discounted profit shortfall \(\sum_t \delta^{t}(\pi_c - \pi_{\text{actual}})\) during recovery.</li>
+</ol>
+
+<p>The true RL mimicry cost is then \(C_{\text{RL}}(T) = C_{\text{mimic}}(T) + C_{\text{disruption}}(T)\).</p>
+
+<div class="tablewrap">
+<table>
+<caption>RL disruption ratios — \(C_{\text{RL}} / C_{\text{mimic}}\)</caption>
+<thead><tr><th>T<sub>mimic</sub></th><th class="num">1</th><th class="num">5</th><th class="num">10</th><th class="num">20</th><th class="num">50</th><th class="num">Recovery</th></tr></thead>
+<tbody>
+<tr><td>Q-learning</td><td class="num">2.46×</td><td class="num">1.32×</td><td class="num">1.18×</td><td class="num">1.11×</td><td class="num">1.08×</td><td class="num">3 periods</td></tr>
+<tr><td>SARSA</td><td class="num">5.28×</td><td class="num">1.95×</td><td class="num">1.53×</td><td class="num">1.33×</td><td class="num">1.23×</td><td class="num">7 periods</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note ok">
+<span class="tag">Theorem 3 and its corollary</span>
+<p>Since \(C_{\text{RL}}(T) > C_{\text{mimic}}(T)\) for all \(T\), and \(T^*\) is defined by the crossing \(C(T) \ge p(T)F\), a larger cost function crosses the same threshold sooner:
+\[ T^{*}_{\text{RL}} \;\le\; T^{*}_{\text{rational}} \]</p>
+<p><strong>Algorithmic firms are easier to trap than rational ones.</strong> The audit can be shorter against an RL agent than the idealised theory requires, because the agent cannot pretend without actually changing.</p>
+</div>
+
+<p>Two structural features of the table are worth reading.</p>
+
+<p><strong>The ratio decays in \(T\).</strong> Disruption cost is roughly fixed — a bounded recovery period, 3 periods for Q-learning, 7 for SARSA — while \(C_{\text{mimic}}\) grows with \(T\). So the <em>relative</em> penalty is largest for short audits (2.46× at \(T=1\)) and shrinks toward 1 as \(T\) grows. Disruption matters most precisely in the regime where \(C_{\text{mimic}}\) alone is weakest, which is the useful direction: it strengthens the mechanism exactly where the base theory is thinnest.</p>
+
+<p><strong>SARSA is hurt roughly twice as badly</strong>, and this follows directly from §2's on/off-policy distinction. Q-learning bootstraps from \(\max_{a'} Q(s',a')\) — the best available action, <em>regardless of what is played</em> — so even while Nash actions are being forced, the TD target still references the value of the collusive action. Some memory of the collusive policy survives. SARSA bootstraps from the action actually taken, so forced Nash play propagates Nash values through the table unimpeded. The off-policy agent keeps a shadow of its old policy; the on-policy agent does not, and takes 7 periods to recover instead of 3.</p>
+
+<p>The policy reading: a regulator who knows or can infer the learning algorithm can calibrate \(T\) differently for each. On-policy learners are more fragile under audit — and the asymmetry is large enough (roughly 2×) to matter.</p>
+</section>
+
+
+<section>
+<h2 id="extensions"><span class="num">07</span>Extensions: imperfect mimicry and adaptive audits</h2>
+
+<h3>Mimicry is hard to execute</h3>
+
+<p>Theorem 1 assumes perfect mimicry — the firm plays exactly Nash. Real agents overshoot. <code>run_audit_with_noisy_mimicry()</code> models this as Nash plus Gaussian noise on the action index, scaled as a fraction of the grid size \(k\).</p>
+
+<div class="tablewrap">
+<table>
+<caption>Detection probability under imperfect mimicry (T=20, n=2 Q-learning)</caption>
+<thead><tr><th>Noise (fraction of grid)</th><th class="num">0%</th><th class="num">2%</th><th class="num">5%</th><th class="num">8%</th><th class="num">10%</th><th class="num">15%+</th></tr></thead>
+<tbody>
+<tr><td>p(detection)</td><td class="num">0.000</td><td class="num">0.000</td><td class="num">0.580</td><td class="num">0.991</td><td class="num">1.000</td><td class="num">1.000</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The transition is extremely sharp. Below 2% noise, mimicry is undetectable. At 8%, detection is near-certain. <strong>Mimicry must be executed with better than ~5% precision to work at all.</strong></p>
+
+<p>The sharpness has a clean explanation. Over \(T=20\) periods, detection requires the price gap to exceed \(\tau\) at least twice consecutively. If the per-period probability of a threshold crossing is \(q\), the probability of escaping 20 periods falls roughly as \((1-q^2)^{19}\) — so a small increase in \(q\) produces a large change in escape probability. Noise of 5% of a 15-level grid is about 0.75 levels of standard deviation, which puts a meaningful fraction of draws a full level above Nash; at 8% it is 1.2 levels and crossings become routine.</p>
+
+<p>This is a demanding requirement for an agent that must also keep exploring, since exploration is how a learning policy is maintained. There is a real tension for the firm: shutting off exploration to mimic cleanly degrades the policy further (compounding Theorem 3's damage), while keeping it on risks tripping the threshold.</p>
+
+<h3>The adaptive audit</h3>
+
+<p>A fixed \(T\) is wasteful: against an obviously collusive firm, you learn everything in one period. <code>src/adaptive_audit.py</code> replaces it with sequential Bayesian updating — the regulator maintains a posterior over {collusive, competitive} and stops when confidence crosses a threshold.</p>
+
+<p>The update is the standard log-odds form. With prior odds \(O_0\) and per-period likelihoods \(p_c = P(\text{signal}\mid\text{collusive})\) and \(p_n = P(\text{signal}\mid\text{competitive})\), each observation multiplies the odds by \(p_c/p_n\) if a signal is seen and \((1-p_c)/(1-p_n)\) if not. In log space the evidence simply accumulates, which is what makes sequential stopping natural.</p>
+
+<div class="tablewrap">
+<table>
+<caption>Adaptive audit performance</caption>
+<thead><tr><th>Metric</th><th class="num">Value</th><th class="num">95% CI</th></tr></thead>
+<tbody>
+<tr><td>Accuracy</td><td class="num">1.000</td><td class="num">[0.989, 1.000]</td></tr>
+<tr><td>Mean audit length</td><td class="num">1.0 ± 0.0</td><td class="num">—</td></tr>
+<tr><td>False positives on mimicking firms</td><td class="num">0.000</td><td class="num">[0.000, 0.011]</td></tr>
+<tr><td>\(p(\text{signal} \mid \text{collusive})\)</td><td class="num">0.811</td><td class="num">[0.792, 0.829]</td></tr>
+<tr><td>\(p(\text{signal} \mid \text{competitive})\)</td><td class="num">0.0001</td><td class="num">[0.000, 0.002]</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>With \(p_c = 0.811\) and \(p_n = 0.0001\), one observed signal carries a log-likelihood ratio of \(\ln(0.811/0.0001) \approx 9.0\) nats — more than enough to cross any reasonable posterior threshold in a single period. Hence mean audit length of exactly 1.</p>
+
+<div class="note plain">
+<span class="tag">Wilson intervals, and why not the normal approximation</span>
+<p><strong>0 of 1,750 competitive samples produced a signal.</strong> The standard Wald interval \(\hat p \pm 1.96\sqrt{\hat p(1-\hat p)/n}\) gives \([0, 0]\) at \(\hat p = 0\) — a claim of perfect certainty from finite data, which is obviously wrong.</p>
+<p>The Wilson score interval inverts the score test instead of using the plug-in variance, and it does not degenerate at the boundary. It correctly reports an upper bound of 0.0022 here: having seen zero events in 1,750 trials, the true rate could still plausibly be as high as about 1 in 450.</p>
+<p>Note also that \(p_n = 10^{-4}\) is a <em>clipping floor</em> applied in code (<code>np.clip(..., 1e-4, 0.9999)</code>), not a measurement — the measurement is zero. The clip exists because the log-likelihood ratio would otherwise be infinite, and an infinite update would make the posterior insensitive to all subsequent evidence.</p>
+</div>
+
+<p>The honest caveat the code itself encodes: \(p_c\) and \(p_n\) are <em>estimated from the trained policy</em>. The adaptive audit knows what collusion looks like in this specific market. A real regulator does not, and the calibration step — not the Bayesian update — is where the practical difficulty sits.</p>
+
+<h3>Mapping to real fine regimes</h3>
+
+<p><code>src/policy.py</code> converts \(F_{\min}\) into the units three real jurisdictions use:</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Jurisdiction</th><th>Structure</th></tr></thead>
+<tbody>
+<tr><td>EU</td><td>cap at 10% of worldwide annual turnover; base up to 30% of relevant sales × years, plus a 15–25% entry fee</td></tr>
+<tr><td>USA</td><td>greater of $100M statutory maximum, 20% of volume of commerce, or 2× gross gain/loss — plus treble civil damages</td></tr>
+<tr><td>India</td><td>10% of turnover <em>or</em> 3× profit per year of cartel, whichever is higher; base up to 30% of relevant turnover under the 2024 CCI Guidelines</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>This is the step that makes the theory usable. \(F_{\min}\) is in model profit units; a competition authority works in turnover percentages. The mapping lets the Goldilocks analysis be read as "is the statutory maximum in this jurisdiction above or below \(F_{\min}\) for a market with these margins" — a question a regulator can act on. The answer turns on the margin: \(F_{\min} = (\pi_c - \pi_n)\delta/(1-\delta)\) grows without bound as \(\delta \to 1\), so in a market with patient firms and a healthy collusive surplus, even a 10%-of-turnover cap may sit <em>below</em> \(F_{\min}\) — putting the regulator in the detection regime rather than the deterrence one, and making audit length the binding instrument.</p>
+
+<h3>The dashboard</h3>
+
+<p>A 1,192-line Streamlit app exposes \(\alpha\), \(\delta\), \(F\) and \(T\) as live controls. Streamlit rather than Flask or Dash is the right call for this specific job: the app is a research instrument for exploring a parameter space, not a product, and Streamlit's rerun-on-interaction model maps directly onto "change a parameter, recompute, redraw" with no callback graph to maintain. The cost — the entire script reruns on every widget change — is normally the reason to avoid it, and is tolerable here only because the expensive artefacts (converged Q-tables, p(T) curves) are precomputed and loaded from <code>results/</code>.</p>
+</section>
+
+
+<section>
+<h2 id="significance"><span class="num">08</span>Why this matters</h2>
+
+<h3>The gap is live, not hypothetical</h3>
+
+<p>Algorithmic pricing is standard in airline tickets, hotel rooms, ride-hailing, online retail and electricity markets. Several of these have already produced litigation over whether shared pricing software constitutes an agreement — the question of whether algorithms can collude has moved from economics seminars into courtrooms. The Calvano result says the behaviour is reachable by ordinary RL agents with no coordination; the enforcement framework still assumes an agreement exists to be found.</p>
+
+<h3>What a mechanism buys over a detector</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th></th><th>Pattern detector</th><th>Incentive-compatible audit</th></tr></thead>
+<tbody>
+<tr><td>Needs labelled collusion data</td><td>Yes — and none exists</td><td>No</td></tr>
+<tr><td>Against a smarter adversary</td><td>Degrades</td><td>Improves — Theorem 2(i)</td></tr>
+<tr><td>Failure mode</td><td>Silent false negatives</td><td>Competitive prices for T periods</td></tr>
+<tr><td>Basis for the guarantee</td><td>Statistical, in-distribution</td><td>Strategic, from the firm's own payoffs</td></tr>
+<tr><td>Legal footing</td><td>"the prices look suspicious"</td><td>"the firm failed a designed test"</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The row that matters most is the failure mode. A detector that fails produces nothing — no signal, no record, no consumer benefit. An audit that fails to detect produces \(T\) periods of marginal-cost pricing, because that is what the firm had to do to escape. <strong>The mechanism's worst case is still an outcome the regulator wanted.</strong></p>
+
+<h3>Concrete policy implications</h3>
+
+<ul>
+<li><strong>Audit length must be calibrated to the fine, not chosen independently.</strong> Theorem 2(ii), empirically confirmed: \(T^*\) rises from 2 to 111 periods as \(F\) goes from 0.30 to 2.00.</li>
+<li><strong>Do not set fines just below \(F_{\min}\).</strong> The required audit length diverges there. Either stay well below (detection regime) or go at/above (deterrence regime).</li>
+<li><strong>Bigger penalties can reduce detection.</strong> A counterintuitive result with a clean proof, worth knowing before legislating.</li>
+<li><strong>Algorithmic defendants are more tractable than human ones.</strong> Theorem 3 — the act of hiding damages the algorithm's learned policy, so \(T^*_{\text{RL}} \le T^*_{\text{rational}}\) — and on-policy learners are about twice as fragile as off-policy ones.</li>
+<li><strong>Mimicry needs sub-5% precision.</strong> Below that it fails outright, which narrows the evasion space considerably.</li>
+<li><strong>Audits can be short.</strong> The adaptive mechanism reaches perfect accuracy with mean length 1 period, when likelihoods are well calibrated.</li>
+</ul>
+
+<h3>Beyond pricing</h3>
+
+<p>The pattern — inject a counterfactual, measure the response, set the parameters so that gaming costs more than complying — applies wherever an adaptive system might behave differently when observed. Recommender systems audited for amplification, credit models audited for disparate impact, content ranking audited for manipulation, and AI systems that might behave differently during evaluation than during deployment. In each case the static-detector approach loses to adaptation and the mechanism approach does not, for the same structural reason: the mechanism's guarantee comes from the <em>adversary's own payoff function</em>, which improves as the adversary gets better at computing it.</p>
+</section>
+
+
+<section>
+<h2 id="limits"><span class="num">09</span>Limits</h2>
+
+<ul>
+<li><strong>Tabular Q-learning over a discretised grid.</strong> \(k=15\) prices for \(n=2\), \(k=12\) for \(n=3\). Real pricing systems use deep RL over continuous actions with rich features. The qualitative results should carry; \(T^*\) values specifically will not.</li>
+<li><strong>The firm is assumed to know it is being audited.</strong> This is the conservative assumption — it gives the firm its best shot — but a covert audit changes the game substantially, and the deterrence regime explicitly relies on audits being random or covert.</li>
+<li><strong>The agent cannot freeze learning.</strong> Theorem 3's disruption assumes Q-updates continue during mimicry. A firm that suspends learning during an audit avoids the damage — a strictly stronger adversary than the one modelled.</li>
+<li><strong>The synthetic entrant is a modelling device.</strong> Injecting a marginal-cost competitor is easy in simulation. In a real market it requires a willing participant, a regulatory power to compel one, or credible simulated order flow — each with its own legal and practical difficulties. This is the largest gap between the model and deployment.</li>
+<li><strong>Adaptive-audit likelihoods are estimated from the trained policy.</strong> The mechanism knows what collusion looks like here; a real regulator would have to calibrate \(p_c\) and \(p_n\) from market data, and that is where the practical difficulty concentrates.</li>
+<li><strong>\(\pi_c\) and \(\pi_n\) are assumed observable.</strong> \(T^*\) depends on both. A regulator can estimate \(\pi_n\) from cost data, but \(\pi_c\) is the thing under investigation.</li>
+<li><strong>Small \(n\).</strong> Two and three firms. The state space is \(k^n\) per agent, so tabular methods do not extend much further, and collusion is known to be harder to sustain as \(n\) grows.</li>
+<li><strong>\(T^*\) CIs of zero width are a discreteness artefact</strong>, not unusual precision — see §5.</li>
+</ul>
+</section>
+
+
+<section>
+<h2 id="repro"><span class="num">10</span>Repository and reproduction</h2>
+
+<pre class="tree"><code>Game_Theory_Usecase/
+├── src/
+│   ├── model.py          CalvanoModel — logit demand, FOC solving for Nash and
+│   │                     monopoly, profit tensor, Q-init, collusion index
+│   ├── simulation.py     Q-learning / SARSA engine, ε-greedy decay,
+│   │                     convergence tracking, impulse response
+│   ├── audit.py          M2 — entrant injection, τ calibration, p(T) with
+│   │                     isotonic projection and multi-seed CIs
+│   ├── mimicry.py        M3 — mimicry cost (theoretical + empirical),
+│   │                     noisy mimicry sweep, Theorem 3 disruption protocol
+│   ├── t_star.py         M4 — analytical and empirical T*, p(T) model fitting,
+│   │                     Theorem 2 comparative statics
+│   ├── policy.py         M5 — F_min, F_crit, Goldilocks zone, EU/US/India
+│   │                     fine-structure mapping
+│   ├── adaptive_audit.py M6 — sequential Bayesian audit, Wilson intervals
+│   ├── plotting.py       28 figures
+│   └── utils.py          equilibrium helpers, entrant profits, CS, HHI
+├── calvano_replication.py   baseline replication, standalone
+├── run_experiments.py       the full suite
+├── audit_mechanism.py       τ and T* logic, standalone
+├── app.py                   1,192-line Streamlit dashboard
+└── results/
+    ├── all_results.json     every number quoted here, plus a _meta block
+    └── figures/             28 PNGs</code></pre>
+
+<pre><code>pip install -r requirements.txt
+
+python run_experiments.py          # full suite → results/ and figures/
+python calvano_replication.py      # baseline Q-learning convergence only
+streamlit run app.py               # interactive: tune α, δ, F, T live</code></pre>
+
+<div class="note plain">
+<span class="tag">Run configuration, from <code>_meta</code></span>
+<p><code>tmax</code> = 5,000,000 learning periods · <code>n_values</code> = [2, 3] · <code>T_values</code> = 26 points from 1 to 100 · <code>n_mc</code> = 350 Monte-Carlo audit trials · learning seeds = [42, 59, 76, 93, 110, 127, 144] · audit seeds = [101, 202, …, 707] · 50 runs per seed for CIs · detection metric = mean price gap · 2 consecutive hits required · audit ε = 0.01 · τ calibrated per configuration (0.0665 for n=2, 0.0800 / 0.0816 for n=3).</p>
+<p>The <code>_meta</code> block is itself a design decision worth copying: every number in the results file carries the configuration that produced it, in the same file. A results artefact that does not record its own provenance is unreproducible the moment the script changes.</p>
+</div>
+</section>
+
+
+<nav class="pager" aria-label="Other documents in this set">
+<a class="prev" href="02-cross-language-brain-alignment.html" rel="prev"><span class="dir">&larr; Previous</span><span class="t">Mechanistic Interpretability of Cross-Language Brain Alignment</span></a>
+<a class="next" href="04-spectral-soil-modeler.html" rel="next"><span class="dir">Next &rarr;</span><span class="t">Spectral Soil Modeler</span></a>
+</nav>
+
+    </main>
+  </div>
+</div>
+
+<footer class="foot">
+  <div class="wrap">
+    <p><b>How this document was produced.</b> Written by reading the project's source code, reports and result files directly. Formulas, file paths, hyperparameters and numbers below were taken from the code as it stands, not from memory. Where the code and the written report disagree, both readings are shown and the disagreement is flagged rather than smoothed over.</p><p>Every numeric result quoted here was read out of the committed <code>results/all_results.json</code>, which carries a <code>_meta</code> block recording the exact run configuration (5M learning periods, 350 Monte-Carlo audit trials, seven seeds for both learning and audit stages). Theorem statements and their proofs are reconstructed from the implementations in <code>src/t_star.py</code> and <code>src/policy.py</code>.</p>
+  </div>
+</footer>
+
+<button class="themer" id="themer" type="button">Theme</button>
+<script>
+(function(){
+  var b=document.getElementById('themer'), r=document.documentElement;
+  var saved=null; try{saved=localStorage.getItem('doc-theme')}catch(e){}
+  if(saved){r.setAttribute('data-theme',saved)}
+  b.addEventListener('click',function(){
+    var cur=r.getAttribute('data-theme');
+    if(!cur){cur=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}
+    var next=cur==='dark'?'light':'dark';
+    r.setAttribute('data-theme',next);
+    try{localStorage.setItem('doc-theme',next)}catch(e){}
+  });
+})();
+</script>
+
+</body>
+</html>

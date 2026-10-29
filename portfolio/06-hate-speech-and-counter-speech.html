@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="en" >
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Implicit Hate-Speech Detection and Counter-Speech Generation</title>
+<meta name="description" content="Detecting hate that never uses a slur, then answering it — a two-stage pipeline pairing toxicity and emotion classifiers with two different routes to generated counter-narrative.">
+<style>
+:root{
+  --bg:#fbfaf7; --bg-alt:#f3f1ea; --ink:#16181d; --ink-soft:#4a505c; --ink-faint:#767d8c;
+  --rule:#ddd9cd; --rule-soft:#e9e5db;
+  --accent:#7a4a1e; --accent-soft:#f0e4d4; --accent-ink:#5c3514;
+  --code-bg:#f5f2eb; --code-ink:#2d2a24;
+  --ok:#2f6b47; --warn:#8a5a10; --flag:#8d3030;
+  --max:min(1180px,100%);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131519; --bg-alt:#1a1d23; --ink:#e7e5e0; --ink-soft:#b2b6bf; --ink-faint:#858b97;
+    --rule:#2c3038; --rule-soft:#23262c;
+    --accent:#d9a86a; --accent-soft:#2a221a; --accent-ink:#e8c396;
+    --code-bg:#1c1f25; --code-ink:#dcd9d2;
+    --ok:#6fbf8e; --warn:#d6a44a; --flag:#e07b7b;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131519; --bg-alt:#1a1d23; --ink:#e7e5e0; --ink-soft:#b2b6bf; --ink-faint:#858b97;
+  --rule:#2c3038; --rule-soft:#23262c;
+  --accent:#d9a86a; --accent-soft:#2a221a; --accent-ink:#e8c396;
+  --code-bg:#1c1f25; --code-ink:#dcd9d2;
+  --ok:#6fbf8e; --warn:#d6a44a; --flag:#e07b7b;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:1.5rem}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:16.5px/1.68 "Iowan Old Style","Charter","Georgia","Source Serif 4",serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--max); margin:0 auto; padding:0 16px}
+.shell{display:grid; grid-template-columns:250px minmax(0,1fr); gap:46px; align-items:start}
+@media (max-width:900px){ .shell{grid-template-columns:1fr; gap:0} }
+
+/* ---------- masthead ---------- */
+header.mast{border-bottom:1px solid var(--rule); background:var(--bg-alt)}
+header.mast .wrap{padding-top:34px; padding-bottom:30px}
+.kicker{
+  font:600 11.5px/1 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:14px;
+}
+h1{font-size:clamp(27px,4.3vw,42px); line-height:1.14; margin:0 0 14px; font-weight:600; letter-spacing:-.015em}
+.standfirst{font-size:18px; color:var(--ink-soft); margin:0; max-width:62ch}
+.meta{
+  display:flex; flex-wrap:wrap; gap:8px 22px; margin-top:22px;
+  font:13px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink-faint);
+}
+.meta b{color:var(--ink-soft); font-weight:600}
+.meta a{color:var(--accent); text-decoration:none; border-bottom:1px solid var(--accent-soft)}
+.meta a:hover{border-bottom-color:var(--accent)}
+
+/* ---------- nav ---------- */
+nav.toc{
+  position:sticky; top:20px; padding:30px 0 40px;
+  font:13.5px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+nav.toc .lbl{font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:12px; font-weight:600}
+nav.toc ol{list-style:none; margin:0; padding:0; counter-reset:toc}
+nav.toc li{counter-increment:toc; margin:0 0 2px}
+nav.toc a{
+  display:block; padding:5px 10px 5px 30px; color:var(--ink-soft); text-decoration:none;
+  border-left:2px solid transparent; border-radius:0 4px 4px 0; position:relative;
+}
+nav.toc a::before{
+  content:counter(toc); position:absolute; left:8px; color:var(--ink-faint);
+  font-variant-numeric:tabular-nums; font-size:11.5px; top:6px;
+}
+nav.toc a:hover{background:var(--bg-alt); color:var(--ink)}
+@media (max-width:900px){
+  nav.toc{position:static; padding:24px 0 8px; border-bottom:1px solid var(--rule-soft)}
+  nav.toc ol{columns:2; column-gap:20px}
+}
+
+/* ---------- body ---------- */
+main{padding:34px 0 90px; min-width:0}
+section{margin:0 0 56px; scroll-margin-top:20px}
+h2{
+  font-size:clamp(21px,2.8vw,27px); font-weight:600; letter-spacing:-.01em;
+  margin:0 0 6px; padding-bottom:10px; border-bottom:1px solid var(--rule);
+}
+h2 .num{color:var(--accent); font-variant-numeric:tabular-nums; margin-right:12px; font-size:.78em; font-weight:600}
+h3{font-size:18.5px; font-weight:600; margin:34px 0 8px; color:var(--ink)}
+h4{font-size:15.5px; font-weight:600; margin:24px 0 6px; color:var(--ink-soft);
+   font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.005em}
+p{margin:0 0 15px; max-width:74ch}
+ul,ol{margin:0 0 15px; padding-left:24px; max-width:74ch}
+li{margin:0 0 7px}
+li > ul, li > ol{margin-top:7px}
+strong{font-weight:600}
+em{font-style:italic}
+a{color:var(--accent)}
+hr{border:0; border-top:1px solid var(--rule-soft); margin:34px 0}
+.lede{font-size:17.5px; color:var(--ink-soft); max-width:70ch}
+
+/* ---------- code ---------- */
+code{
+  font:0.875em/1.5 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  background:var(--code-bg); color:var(--code-ink); padding:.13em .38em; border-radius:3px;
+  border:1px solid var(--rule-soft); word-break:break-word;
+}
+pre{
+  background:var(--code-bg); border:1px solid var(--rule-soft); border-radius:7px;
+  padding:15px 17px; overflow-x:auto; margin:0 0 18px;
+  font:13px/1.62 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  color:var(--code-ink);
+}
+pre code{background:none; border:0; padding:0; font-size:inherit; word-break:normal}
+pre.tree{font-size:12.3px; line-height:1.55}
+.filename{
+  font:600 11.5px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:var(--ink-faint); margin:0 0 6px; letter-spacing:.02em;
+}
+.filename::before{content:"▸ "; color:var(--accent)}
+
+/* ---------- callouts ---------- */
+.note{
+  border-left:3px solid var(--accent); background:var(--accent-soft);
+  padding:14px 18px; margin:0 0 20px; border-radius:0 6px 6px 0; max-width:76ch;
+}
+.note p:last-child{margin-bottom:0}
+.note .tag{
+  display:block; font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent-ink); margin-bottom:8px;
+}
+.note.flag{border-left-color:var(--flag)} .note.flag .tag{color:var(--flag)}
+.note.ok{border-left-color:var(--ok)} .note.ok .tag{color:var(--ok)}
+.note.warn{border-left-color:var(--warn)} .note.warn .tag{color:var(--warn)}
+.note.plain{background:var(--bg-alt); border-left-color:var(--rule)}
+.note.plain .tag{color:var(--ink-faint)}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto; margin:0 0 20px; -webkit-overflow-scrolling:touch}
+table{
+  border-collapse:collapse; width:100%; min-width:430px;
+  font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+caption{
+  caption-side:top; text-align:left; font-size:12.5px; color:var(--ink-faint);
+  padding:0 0 8px; font-family:ui-sans-serif,system-ui,sans-serif;
+}
+th,td{padding:8px 13px; text-align:left; border-bottom:1px solid var(--rule-soft); vertical-align:top}
+th{
+  font-weight:600; font-size:12px; letter-spacing:.055em; text-transform:uppercase;
+  color:var(--ink-faint); border-bottom:1px solid var(--rule); white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:1px solid var(--rule)}
+td.num,th.num{text-align:right; font-variant-numeric:tabular-nums}
+tbody tr:hover{background:var(--bg-alt)}
+td code{font-size:.84em}
+
+/* ---------- misc ---------- */
+.deck{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); margin:0 0 22px}
+.card{border:1px solid var(--rule-soft); border-radius:8px; padding:14px 16px; background:var(--bg-alt)}
+.card .k{
+  font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-faint); margin-bottom:7px;
+}
+.card .v{font-size:21px; font-weight:600; letter-spacing:-.01em; font-variant-numeric:tabular-nums}
+.card .d{font-size:13px; color:var(--ink-soft); margin-top:5px; line-height:1.45;
+         font-family:ui-sans-serif,system-ui,sans-serif}
+figure{margin:0 0 22px}
+figure svg{display:block; width:100%; height:auto; max-width:100%}
+figcaption{font-size:13px; color:var(--ink-faint); margin-top:9px; max-width:70ch;
+           font-family:ui-sans-serif,system-ui,sans-serif; line-height:1.5}
+.eq{
+  background:var(--bg-alt); border:1px solid var(--rule-soft); border-radius:7px;
+  padding:4px 18px; margin:0 0 18px; overflow-x:auto;
+}
+.pill{
+  display:inline-block; font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.07em;
+  text-transform:uppercase; padding:4px 9px; border-radius:20px;
+  background:var(--accent-soft); color:var(--accent-ink); margin:0 6px 6px 0;
+}
+.srconly{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+footer.foot{
+  border-top:1px solid var(--rule); background:var(--bg-alt); padding:24px 0 40px;
+  font:13.5px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink-faint);
+}
+footer.foot .wrap{max-width:var(--max)}
+footer.foot p{max-width:76ch; margin:0 0 9px}
+.themer{
+  position:fixed; right:14px; bottom:14px; z-index:50;
+  border:1px solid var(--rule); background:var(--bg-alt); color:var(--ink-soft);
+  border-radius:20px; padding:7px 14px; cursor:pointer;
+  font:600 12px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.04em;
+}
+.themer:hover{color:var(--ink); border-color:var(--accent)}
+@media print{ .themer,nav.toc{display:none} .shell{grid-template-columns:1fr} body{background:#fff;color:#000} }
+mjx-container{overflow-x:auto; overflow-y:hidden; max-width:100%}
+mjx-container[display="true"]{margin:.7em 0 !important}
+
+/* ---------- set navigation ---------- */
+.setbar{border-bottom:1px solid var(--rule-soft); background:var(--bg)}
+.setbar .wrap{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding-top:11px; padding-bottom:11px;
+  font:13px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.setbar a{color:var(--ink-soft); text-decoration:none}
+.setbar a:hover{color:var(--accent)}
+.setbar .home{font-weight:600; color:var(--ink-soft); white-space:nowrap}
+.setbar .home span{color:var(--accent)}
+.setbar .pos{color:var(--ink-faint); font-variant-numeric:tabular-nums; white-space:nowrap}
+.setbar .jump{display:flex; gap:14px; align-items:center; min-width:0}
+.setbar .jump a{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+@media (max-width:700px){ .setbar .jump .lbl2{display:none} }
+
+nav.toc .sibs{margin-top:26px; padding-top:18px; border-top:1px solid var(--rule-soft)}
+nav.toc .sibs ul{list-style:none; margin:0; padding:0}
+nav.toc .sibs li{margin:0 0 1px; counter-increment:none}
+nav.toc .sibs a{
+  display:block; padding:5px 10px 5px 30px; color:var(--ink-faint); text-decoration:none;
+  border-left:2px solid transparent; border-radius:0 4px 4px 0; position:relative; font-size:13px;
+}
+nav.toc .sibs a .n{position:absolute; left:8px; font-variant-numeric:tabular-nums; font-size:11.5px}
+nav.toc .sibs a:hover{background:var(--bg-alt); color:var(--ink)}
+nav.toc .sibs a[aria-current="page"]{
+  color:var(--ink); font-weight:600; border-left-color:var(--accent); background:var(--accent-soft);
+}
+
+.pager{
+  display:grid; gap:14px; grid-template-columns:1fr 1fr; margin:10px 0 0;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (max-width:620px){ .pager{grid-template-columns:1fr} }
+.pager a{
+  display:block; border:1px solid var(--rule-soft); border-radius:8px; padding:14px 16px;
+  text-decoration:none; background:var(--bg-alt); color:var(--ink);
+}
+.pager a:hover{border-color:var(--accent)}
+.pager .dir{
+  display:block; font:600 10.5px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:7px;
+}
+.pager .t{display:block; font-size:14.5px; font-weight:600; line-height:1.35}
+.pager .next{text-align:right}
+.pager .spacer{border:1px dashed var(--rule-soft); border-radius:8px; opacity:.35}
+
+/* ---------- index page ---------- */
+.indexwrap{max-width:900px; margin:0 auto; padding:0 16px}
+main.index{padding:36px 0 80px}
+.projlist{display:flex; flex-direction:column; gap:16px; margin:0 0 44px}
+.proj{
+  display:block; border:1px solid var(--rule-soft); border-radius:10px; padding:20px 22px;
+  text-decoration:none; color:var(--ink); background:var(--bg-alt); position:relative;
+}
+.proj:hover{border-color:var(--accent)}
+.proj .pnum{
+  font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.14em; color:var(--accent);
+  display:block; margin-bottom:9px;
+}
+.proj h3{margin:0 0 8px; font-size:20px; font-weight:600; letter-spacing:-.01em; line-height:1.25}
+.proj p{margin:0 0 12px; color:var(--ink-soft); font-size:15.5px; max-width:68ch}
+.proj .tags{display:flex; flex-wrap:wrap; gap:6px 8px; font-family:ui-sans-serif,system-ui,sans-serif}
+.proj .tag2{
+  font-size:11.5px; letter-spacing:.03em; color:var(--ink-faint);
+  border:1px solid var(--rule-soft); border-radius:20px; padding:3px 10px; background:var(--bg);
+}
+.proj .when{
+  position:absolute; top:20px; right:22px; font:12px/1 ui-sans-serif,system-ui,sans-serif;
+  color:var(--ink-faint); font-variant-numeric:tabular-nums;
+}
+@media (max-width:620px){ .proj .when{position:static; display:block; margin-bottom:9px} }
+</style>
+
+<script>
+window.MathJax={
+  tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']],processEscapes:true},
+  options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']},
+  chtml:{scale:0.98}
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
+
+</head>
+<body>
+<div class="setbar">
+  <div class="wrap">
+    <a class="home" href="index.html">&#8962; <span>Anupam Dwivedi — Project Portfolio</span></a>
+    <div class="jump"><a href="05-detection-of-computer-generated-text.html" rel="prev">&larr; <span class="lbl2">Detecting Machine Text</span></a></div>
+    <span class="pos">6 / 6</span>
+  </div>
+</div>
+
+<header class="mast">
+  <div class="wrap">
+    <div class="kicker">Project 06 &nbsp;·&nbsp; NLP &amp; Generation</div>
+    <h1>Implicit Hate-Speech Detection and Counter-Speech Generation</h1>
+    <p class="standfirst">Detecting hate that never uses a slur, then answering it — a two-stage pipeline pairing toxicity and emotion classifiers with two different routes to generated counter-narrative.</p>
+    <div class="meta">
+        <span><b>Period</b> Oct – Dec 2023</span>
+        <span><b>Repository</b> <a href="https://github.com/a-n-u-p-a-m/Hate-Speech-Detection-and-Counter-Speech-Generation">Hate-Speech-Detection-and-Counter-Speech-Generation</a></span>
+        <span><b>Stack</b> PyTorch · TensorFlow / Keras · HuggingFace Transformers</span>
+        <span><b>Datasets</b> Multi-Target CONAN (5,003 pairs) · ToxiGen (274k)</span>
+        <span><b>Type</b> Group project (4) · B.Tech 7th-semester mini-project</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="shell">
+    <nav class="toc" aria-label="Contents">
+      <div class="lbl">Contents</div>
+      <ol>
+        <li><a href="#premise">Two hard problems, chained</a></li>
+        <li><a href="#data">Two datasets, two jobs</a></li>
+        <li><a href="#detection">Stage one: detection, and the emotion channel</a></li>
+        <li><a href="#generation">Stage two: two routes to counter-speech</a></li>
+        <li><a href="#guardrails">Guardrails, and the ones that are missing</a></li>
+        <li><a href="#significance">Why this matters</a></li>
+        <li><a href="#limits">Limits</a></li>
+        <li><a href="#repro">Code and reproduction</a></li>
+      </ol>
+      <div class="sibs">
+        <div class="lbl">The other projects</div>
+        <ul>
+          <li><a href="01-tgn-mechanistic-interpretability.html"><span class="n">01</span>Reverse-Engineering a TGN</a></li>
+          <li><a href="02-cross-language-brain-alignment.html"><span class="n">02</span>Cross-Language Brain Alignment</a></li>
+          <li><a href="03-algorithmic-collusion-audit-mechanism.html"><span class="n">03</span>Algorithmic Collusion Audits</a></li>
+          <li><a href="04-spectral-soil-modeler.html"><span class="n">04</span>Spectral Soil Modeler</a></li>
+          <li><a href="05-detection-of-computer-generated-text.html"><span class="n">05</span>Detecting Machine Text</a></li>
+          <li><a href="06-hate-speech-and-counter-speech.html" aria-current="page"><span class="n">06</span>Hate &amp; Counter Speech</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main>
+<section>
+<h2 id="premise"><span class="num">01</span>Two hard problems, chained</h2>
+
+<p class="lede">Most content moderation ends at detection: find the harmful post, remove it. This project takes a different position — that deletion silences a speaker without changing a reader's mind, and that the better intervention is to <em>answer</em>. That turns one classification problem into a classification problem plus a generation problem, and the generation half is considerably harder.</p>
+
+<p>The two terms, as the project defines them:</p>
+
+<ul>
+<li><strong>Hate speech</strong> — speech attacking a person or group on the basis of racial, gender-related or ethical attributes.</li>
+<li><strong>Counter speech</strong> — speech that counters the offence caused to the implied person or group, promoting tolerance and understanding by addressing and challenging the harmful narrative directly.</li>
+</ul>
+
+<p>The target is specifically <strong>implicit</strong> hate speech: mild and indirect, critical but inoffensive on the surface, containing no swear words, slurs or unparliamentary language.</p>
+
+<h3>Why implicit is the hard case</h3>
+
+<p>Explicit hate speech is close to a solved problem. A slur list plus a reasonable classifier catches most of it, because the signal is lexical and sits on the surface. Implicit hate speech has no such signal. Consider the example the project actually works with:</p>
+
+<div class="note plain">
+<p><em>"i think that muslims can be a problem for our society, because they do not want to conform to our costumes. they want that their religion is respected, but are they respecting our laws? one day they will oppress us with the sharia and polygamy"</em></p>
+</div>
+
+<p>There is not a single slur or profanity. Every individual clause is grammatical, superficially reasonable, and phrased as concern or as a question. The harm is carried by linguistic machinery that operates <em>below</em> the level of what is literally asserted:</p>
+
+<ul>
+<li><strong>Presupposition.</strong> "they do not want to conform to <em>our</em> customs" presupposes a stable in-group/out-group division and that the customs belong to one of them. Presuppositions survive negation and questioning — which is why they are hard to argue against directly, and why a reader absorbs them without evaluating them.</li>
+<li><strong>Implicature.</strong> "are they respecting our laws?" asserts nothing. Posed rhetorically after the preceding clause, it implies the answer is no, while remaining literally a question.</li>
+<li><strong>Generic reference.</strong> "muslims" with no quantifier makes a claim about a kind rather than about individuals, which is what converts a possibly-true observation about some people into a stereotype.</li>
+</ul>
+
+<p>A lexical filter sees nothing here. A sentiment classifier sees something close to neutral. <strong>This is also the overwhelming majority of real-world harm</strong>: the ToxiGen paper reports that <strong>98.2% of its statements are implicit</strong> — devoid of explicit profanity, slurs or swear words — which is the measurement that justifies this project's framing.</p>
+
+<h3>Why counter-speech instead of deletion</h3>
+
+<p>The case rests on three arguments, which the project's abstract makes explicitly. Deletion silences without persuading, so the belief persists and relocates. It invites the censorship objection, which is politically and legally costly and frequently amplifies the original message. And it leaves the audience — usually more numerous than the speaker, and more persuadable — with nothing.</p>
+
+<p>Counter-speech addresses all three, at the cost of being far harder to automate. The abstract's framing is worth keeping in view: hate speech excludes its targets from public debate and silences them, and the difficulty lies in balancing free expression against preventing harm. The counter-speech approach is an attempt to intervene without having to resolve that trade-off.</p>
+</section>
+
+
+<section>
+<h2 id="data"><span class="num">02</span>Two datasets, two jobs</h2>
+
+<h3>ToxiGen — for the detector</h3>
+
+<div class="deck">
+<div class="card"><div class="k">Statements</div><div class="v">274k</div><div class="d">~135k toxic, ~135k benign</div></div>
+<div class="card"><div class="k">Groups</div><div class="v">13</div><div class="d">minority identity groups</div></div>
+<div class="card"><div class="k">Implicit</div><div class="v">98.2%</div><div class="d">no explicit profanity, slurs or swear words</div></div>
+<div class="card"><div class="k">Transfer gain</div><div class="v">+7–19%</div><div class="d">on three human-written implicit-toxicity datasets</div></div>
+</div>
+
+<p>ToxiGen (Hartvigsen et&nbsp;al., 2022) is machine-generated, using the ALICE framework, and that is a design feature rather than a compromise. Human-written implicit hate is rare in the wild relative to explicit hate, expensive to collect, legally fraught to host, and psychologically costly to annotate. Generating it adversarially produces balanced coverage across all 13 groups and both classes at a scale no annotation budget reaches.</p>
+
+<p>The validation that matters is transfer: fine-tuning existing classifiers on ToxiGen improves performance by <strong>7–19%</strong> on three independent <em>human-written</em> datasets — ImplicitHateCorpus, SocialBiasFrames and DynaHate. Synthetic training data that improves performance on real held-out data is doing genuine work, not merely fitting its own generator's artefacts. That is the right validation design for any synthetic corpus, and it is worth noting as a general pattern: <strong>the test of synthetic data is out-of-distribution transfer, never in-distribution accuracy.</strong></p>
+
+<h3>Multi-Target CONAN — for the generator</h3>
+
+<div class="deck">
+<div class="card"><div class="k">Pairs</div><div class="v">5,003</div><div class="d">hate speech ↔ counter-narrative</div></div>
+<div class="card"><div class="k">Targets</div><div class="v">7</div><div class="d">DISABLED, JEWS, LGBT+, MIGRANTS, MUSLIMS, POC, WOMEN</div></div>
+</div>
+
+<p>CONAN exists because counter-speech training data is genuinely scarce — it must be <em>written</em> by someone skilled, not merely labelled. The construction method is a human-in-the-loop loop: a generative model produces candidates, NGO experts review and post-edit them, the edited outputs become training data for the next round, and the model improves. Each iteration reduces the expert burden per usable example.</p>
+
+<p>The crucial property is that the counter-narratives are <strong>expert-written</strong>. The model is not learning what counter-speech looks like from internet arguments — it is learning from people trained in de-escalation. That is a considerably better supervision signal and the main reason the fine-tuning in §4 produces anything coherent from only 5,003 examples.</p>
+
+<p>It is also, as §6 argues, a <em>safety</em> property rather than only a quality one.</p>
+</section>
+
+
+<section>
+<h2 id="detection"><span class="num">03</span>Stage one: detection, and the emotion channel</h2>
+
+<p>Three pre-trained classifiers are used, and the choice of three rather than one reflects a view about what the pipeline needs to know.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Classifier</th><th>Used in</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td><strong>HateBERT</strong>, fine-tuned on ToxiGen</td><td>prompt-based approach</td><td>BERT further pre-trained on abusive Reddit communities</td></tr>
+<tr><td><strong>HateXplain</strong> BERT sequence classifier</td><td>LLM-based approach</td><td>trained with rationale annotations — learns <em>which spans</em> carry the hate</td></tr>
+<tr><td><strong>Emotion</strong> BERT sequence classifier</td><td>LLM-based approach</td><td>detects the emotional register of the hate speech</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Why HateBERT rather than BERT — domain-adaptive pretraining</h3>
+
+<p>Standard BERT is pre-trained on Wikipedia and BookCorpus. Neither contains much resembling online abuse, so BERT's <em>representations</em> of this register are poor before any fine-tuning begins.</p>
+
+<p>HateBERT applies <strong>domain-adaptive pretraining</strong>: take the pretrained BERT checkpoint and continue the masked-language-modelling objective on in-domain text — abusive Reddit communities — before any task fine-tuning. The distinction matters mechanically. Task fine-tuning updates the model to perform a classification; continued pretraining updates it to <em>model the language itself</em>, which reshapes the embedding space so that in-domain distinctions become linearly separable in the first place.</p>
+
+<p>For implicit hate, where the signal is in phrasing, presupposition and register rather than vocabulary, representation quality is the binding constraint. A classification head on top of representations that do not distinguish "concerned" from "coded" cannot recover the difference no matter how it is trained.</p>
+
+<h3>Why HateXplain rather than a plain classifier — rationale supervision</h3>
+
+<p>HateXplain is trained with human rationale annotations: annotators marked the specific <em>spans</em> that made a post hateful, and the model is trained to agree with those spans as well as with the label. It is a form of supervising the explanation, not only the output.</p>
+
+<p>Two consequences:</p>
+
+<ul>
+<li><strong>Reduced spurious correlation.</strong> This is the well-documented failure where toxicity classifiers flag any mention of a minority group — including by members of that group describing their own experience — because group terms co-occur with toxic text in training data. Rationale supervision penalises a model for attending to the group term rather than the hateful predication, which directly targets the mechanism producing that bias.</li>
+<li><strong>Localisation is useful downstream.</strong> Knowing <em>which part</em> is the hateful claim is exactly what a counter-narrative generator needs in order to answer the specific assertion rather than respond vaguely.</li>
+</ul>
+
+<h3>The emotion classifier is the non-obvious addition</h3>
+
+<p>Running an emotion classifier alongside the toxicity classifier is the piece of this design that is genuinely a contribution rather than an assembly choice. The reasoning: <strong>effective counter-speech has to match register.</strong> A measured factual correction answering a post written in rage reads as dismissive; an emotionally charged response to a post written in smug pseudo-reasonableness reads as unhinged and confirms the speaker's framing.</p>
+
+<p>The worked example from the report shows why this is not theoretical:</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Input</th><th>Speech label</th><th>Emotion</th></tr></thead>
+<tbody>
+<tr><td>the anti-Muslim passage, §1</td><td><code>offensive</code></td><td><code>joy</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<p><strong>Joy</strong>, on a passage predicting religious oppression. That is not a classifier error; it is an accurate reading of the register. The passage is written with a kind of satisfied certainty — the pleasure of having worked something out, of warning others. It is not angry. A counter-narrative written to answer anger would be answering a text that does not exist.</p>
+
+<p>This is exactly the information a lone toxicity score discards, and it is the clearest argument in the project for a multi-signal front end. The generalisation: <strong>a scalar harm score is a lossy summary of a thing that has structure</strong>, and when the downstream task is generation rather than removal, the discarded structure is what the generator needed.</p>
+</section>
+
+
+<section>
+<h2 id="generation"><span class="num">04</span>Stage two: two routes to counter-speech</h2>
+
+<p>The project builds both and compares them, which is the right structure for a question nobody had a settled answer to in 2023 — and which has since become the standard first decision in any applied LLM project.</p>
+
+<h3>The underlying model</h3>
+
+<p>Both routes use GPT-2. The shipped <code>config.json</code> from the fine-tuned checkpoint pins the exact configuration:</p>
+
+<div class="tablewrap">
+<table>
+<caption>From the fine-tuned model's <code>config.json</code></caption>
+<thead><tr><th>Field</th><th class="num">Value</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>n_layer</code> / <code>n_head</code> / <code>n_embd</code></td><td class="num">12 / 12 / 768</td><td>GPT-2 small — 124M parameters</td></tr>
+<tr><td><code>n_ctx</code> / <code>n_positions</code></td><td class="num">1024</td><td>context window in tokens</td></tr>
+<tr><td><code>activation_function</code></td><td class="num">gelu_new</td><td>the tanh-approximated GELU of the original implementation</td></tr>
+<tr><td><code>attn/embd/resid_pdrop</code></td><td class="num">0.1</td><td>dropout, unchanged from the base model</td></tr>
+<tr><td><code>torch_dtype</code></td><td class="num">float32</td><td><strong>full precision</strong> — not fp16, not quantised</td></tr>
+<tr><td><code>vocab_size</code></td><td class="num">50258</td><td>base GPT-2 is 50,257 — <strong>one token was added</strong></td></tr>
+<tr><td><code>transformers_version</code></td><td class="num">4.35.0</td><td></td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The checkpoint is 497,777,280 bytes. At four bytes per fp32 parameter that is <strong>124,444,320 parameters</strong> — the full GPT-2 small model, every weight stored. This settles what kind of adaptation was performed, which the report does not state explicitly.</p>
+
+<div class="note">
+<span class="tag">Design decision: full fine-tuning, not PEFT</span>
+<p>Every parameter was updated. No LoRA adapters, no frozen base, no quantisation — the checkpoint is a complete model, not a delta.</p>
+<p><strong>Why that is defensible here:</strong> at 124M parameters, full fine-tuning fits comfortably on one consumer GPU — roughly 0.5 GB of weights, 0.5 GB of gradients and 2 GB of Adam state, before activations. LoRA's advantages (memory, many task-specific adapters over one base, no catastrophic forgetting) all matter at 7B and above; at 124M they buy little. Full fine-tuning also has <em>more</em> capacity to shift the output distribution, which is what this task needs: GPT-2's base distribution over "text that follows hate speech on the internet" is actively harmful, so the adaptation must move it substantially, not nudge it.</p>
+<p><strong>What it costs:</strong> catastrophic forgetting is real and visible in §4's trace — the model's general fluency degrades into repetition at several epochs. A LoRA adapter at modest rank would have constrained the update and likely preserved more of the base model's fluency, at the price of less distributional movement. With 5,003 training examples against 124M parameters, the overfitting risk is substantial and is exactly what the epoch trace exposes.</p>
+<p><strong>The alternative that aged best:</strong> in 2023 full fine-tuning of a small model was the obvious choice. Today the same task would more likely use a larger instruction-tuned base with LoRA, or few-shot prompting of a model that already refuses to produce hateful content — which also changes the safety calculus in §6.</p>
+</div>
+
+<h4>The vocabulary tells a small story</h4>
+
+<p>Base GPT-2 has a vocabulary of 50,257. This checkpoint has <strong>50,258</strong> — exactly one token was added and the embedding matrix resized accordingly.</p>
+
+<p>The generated outputs show <code>&lt;bot&gt;:</code> and <code>&lt;endofstring&gt;</code> as literal strings, which suggests the delimiters were <em>not</em> registered as atomic special tokens — if they had been, that would be two additions, not one. The most likely reading is that the single added token is a <strong>padding token</strong>, which GPT-2 ships without. Batched training requires sequences of equal length, so a pad token has to come from somewhere; the common recipes are either to add one or to alias <code>eos_token</code> as the pad.</p>
+
+<p>(This is an inference from the config and the sample outputs, not a statement from the report. It is worth flagging because it has a real consequence: delimiters left as ordinary BPE sequences are spread across several tokens — <code>&lt;</code>, <code>bot</code>, <code>&gt;</code> — each of which must be predicted in order, so the model spends capacity learning a multi-token boundary marker that a single special token would have made atomic. That plausibly contributes to the epoch-1 behaviour described below.)</p>
+
+<h3>Route A — prompt-based</h3>
+
+<p>A pipeline integrating HateBERT (fine-tuned on ToxiGen) with GPT-2 and GPT-Neo-1.3B. Detected hate speech is wrapped in a constructed prompt and the language model generates a response. Prompts come in two varieties: a <strong>generic</strong> prompt guiding the model toward counter-speech for any input, and <strong>category-specific</strong> prompts for racial, gender-related and general hate speech.</p>
+
+<p>Including GPT-Neo-1.3B alongside GPT-2 (124M) is a scale comparison at roughly 10×, which is the right ablation for a prompting approach: prompting relies entirely on capability already present in the base model, so it should improve sharply with scale in a way fine-tuning on 5,003 examples does not.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th></th><th>Advantages</th><th>Disadvantages</th></tr></thead>
+<tbody>
+<tr><td>Prompt-based</td><td>no training; swap base models freely; prompts editable by non-engineers; a new hate category needs only a new prompt; no risk of catastrophic forgetting</td><td>no control over register or quality; inherits the base model's biases wholesale; output is whatever the base model associates with the prompt, which is unconstrained</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The unconstrained-output problem is serious for this task specifically, and worth stating plainly. A <strong>base</strong> GPT-2 — not instruction-tuned, not RLHF'd, no refusal behaviour — asked to continue text that includes hate speech has no notion of what good counter-speech is. It has internet text, where the most statistically likely continuation of a hateful statement is frequently agreement or escalation. There is a live risk of generating something that <em>endorses</em> the input, which is the worst possible failure mode for a system designed to de-escalate.</p>
+
+<h3>Route B — fine-tuned</h3>
+
+<p>GPT-2 fine-tuned on Multi-Target CONAN, formatted as hate-speech → counter-speech pairs with explicit delimiters (<code>&lt;bot&gt;</code>, <code>&lt;endofstring&gt;</code>). The detection front end is HateXplain plus the emotion classifier; the fine-tuned model is saved and served for custom input.</p>
+
+<h4>What fine-tuning a causal LM on pairs actually does</h4>
+
+<p>GPT-2's objective is next-token prediction: maximise \(\sum_i \log P(x_i \mid x_{&lt;i})\). Fine-tuning does not change the objective — it changes the data. Each training example is a single concatenated sequence:</p>
+
+<pre><code>&lt;hate speech&gt; &lt;bot&gt;: &lt;counter speech&gt; &lt;endofstring&gt;</code></pre>
+
+<p>and the model is trained to predict every token of it. There are two consequences worth being precise about.</p>
+
+<p>First, unless the loss is explicitly masked over the prompt portion, <strong>the model is also learning to generate hate speech</strong> — the first half of every training sequence. That is standard practice and usually harmless for task performance, but it is a real property of the resulting checkpoint and belongs in any safety assessment of it.</p>
+
+<p>Second, the delimiters are doing structural work. <code>&lt;bot&gt;:</code> marks where the response begins, which at inference lets the model be prompted with hate speech plus the delimiter so that continuation <em>is</em> the counter-speech. <code>&lt;endofstring&gt;</code> marks termination — without an explicit stop token, a causal LM continues until it hits the length cap, typically drifting into a new fabricated exchange.</p>
+
+<h4>Decoding</h4>
+
+<p>The config's <code>task_specific_params</code> records the generation settings: <code>do_sample: true</code>, <code>max_length: 50</code>. This is <strong>sampling</strong>, not greedy decoding, and the distinction shapes everything visible in the epoch trace below.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Strategy</th><th>Behaviour</th><th>Failure mode</th></tr></thead>
+<tbody>
+<tr><td>Greedy</td><td>always take \(\arg\max P(x_i)\)</td><td>deterministic and highly prone to degenerate repetition loops — once in a loop, the most likely next token keeps it there</td></tr>
+<tr><td>Beam search</td><td>keep \(k\) partial hypotheses</td><td>better for translation and summarisation, where there is a right answer; produces bland, high-likelihood text for open-ended generation</td></tr>
+<tr><td><strong>Sampling</strong></td><td>draw from the distribution</td><td><strong>Used here.</strong> Diverse, and will occasionally sample a low-probability token that derails the output</td></tr>
+<tr><td>Top-k / nucleus (top-p)</td><td>sample from the truncated head of the distribution</td><td>the standard fix — keeps diversity while excluding the unreliable tail; <strong>not configured here</strong></td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Plain sampling with no truncation is the notable choice. Top-\(k\) or nucleus sampling would be the conventional default, and their absence means the model can sample from the full tail of a 50,258-way distribution at every step. For a 124M model fine-tuned on 5,003 examples, that tail is not well estimated.</p>
+
+<h3>The epoch-by-epoch trace</h3>
+
+<p>The most valuable artefact in the report is a table recording the model's output on one fixed hate-speech input at every one of 15 epochs. Held-constant input, varying only training time. It is an unusually honest thing to publish, and it shows the task being learned in stages.</p>
+
+<p>Input, held fixed throughout: <em>"We must send Islamics back to their native countries. They are too different from us."</em></p>
+
+<div class="tablewrap">
+<table>
+<caption>Generated counter-speech by training epoch — one fixed input</caption>
+<thead><tr><th class="num">Epoch</th><th>Output</th><th>What changed</th></tr></thead>
+<tbody>
+<tr><td class="num">1</td><td><em>(empty)</em></td><td>format learned before content — the model emits the delimiters and stops</td></tr>
+<tr><td class="num">2</td><td>"Muslims have lived in the Middle East for hundreds of years, and have contributed to our country."</td><td>first real content: a factual counter-claim</td></tr>
+<tr><td class="num">3</td><td><em>(empty)</em></td><td>regression — not monotone improvement</td></tr>
+<tr><td class="num">4</td><td>"Islam is a religion of peace, and it is a religion of peace."</td><td>degenerate repetition</td></tr>
+<tr><td class="num">5</td><td>"I don't think it is appropriate to send them back to their countries of origin. Why should we be so concerned about their religion?"</td><td>first <em>rhetorical</em> move — a question, not a statement</td></tr>
+<tr><td class="num">6</td><td>"Islam is a religion of peace, and it is a religion of tolerance, not a totalitarian ideology."</td><td>repetition partly resolved into contrast</td></tr>
+<tr><td class="num">7</td><td>"We are all born in different countries, and Islam is a religion of peace. Why should we be afraid of a religion that is alien to us?"</td><td>statement + question combined</td></tr>
+<tr><td class="num">9</td><td>"Why should we expel people from a country where they have lived for a very long time? Why should we expel people from a country where they have lived for a very different reason?"</td><td>repetition returns at the <em>sentence</em> level</td></tr>
+<tr><td class="num">11</td><td>"Why should we? We have a democratic constitution which gives everyone the right to live and practice their religion in our country."</td><td>a <strong>principled</strong> argument — appeals to a shared institution</td></tr>
+<tr><td class="num">12</td><td>"The vast majority of Muslims in the UK are proud British citizens, and they have lived here ever since. Why should we be differently?"</td><td>specific and concrete, with a grammatical slip at the end</td></tr>
+<tr><td class="num">13</td><td>"Why should we? We have always been a country of people from different backgrounds coming to this country to live together and live peacefully?"</td><td>reframes national identity — attacks the premise, not the conclusion</td></tr>
+<tr><td class="num">15</td><td>"Many Muslims live in the UK, and we have a lot of Muslims in the country. What you say is groundless."</td><td>direct refutation — the most confrontational register in the trace</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+<span class="tag">What the trace shows</span>
+<p><strong>Format precedes content.</strong> Epoch 1 produces the delimiters and nothing between them. The model learns the <em>shape</em> of the response before it learns what to put in it — visible in almost all seq2seq fine-tuning and rarely documented this plainly. It is also what you would predict from the loss: the delimiters appear in all 5,003 examples in a fixed position, so they are by far the easiest tokens to predict and absorb the earliest gradient.</p>
+<p><strong>Learning is not monotone.</strong> Epoch 2 produces usable output; epoch 3 produces nothing; epoch 4 produces a degenerate loop. Selecting a checkpoint on validation loss would have picked badly here — a real argument for inspecting generation output during training rather than trusting the loss curve. Note too that <em>sampling</em> means each row is one draw from a distribution, so some of the epoch-to-epoch variation is sampling noise rather than model change. A fairer trace would report several samples per epoch.</p>
+<p><strong>Rhetorical strategy develops in a sequence.</strong> Reading the trace as a progression: factual assertion (2) → repetition (4) → question (5) → statement-plus-question (7) → principled appeal to shared institutions (11) → premise reframing (13) → direct refutation (15). Those are recognisably <em>different argumentative moves</em>, and the later ones are the ones de-escalation training actually recommends. The model is acquiring them roughly in order of difficulty.</p>
+<p><strong>Repetition recurs at increasing scale.</strong> Epoch 4 repeats a clause; epoch 9 repeats an entire sentence structure. Degenerate repetition is a known small-LM pathology — the model assigns high probability to continuing a pattern it has just produced, because self-repetition is common in its training distribution — and it does not vanish with training; it changes granularity. Repetition penalties or n-gram blocking at decode time are the standard mitigations and are not configured here.</p>
+</div>
+
+<p>Two caveats stated plainly. This is <em>one</em> input and one sample per epoch, so the trace shows trajectory rather than aggregate quality. And the outputs at every epoch are generic in a way that matters — "Islam is a religion of peace" is a true statement and a weak counter-narrative, because it does not engage the specific claim about sharia and legal conformity that the original made. Getting from generic to targeted is the open problem, and the project's own future-work section names going beyond GPT-2 as the next step.</p>
+</section>
+
+
+<section>
+<h2 id="guardrails"><span class="num">05</span>Guardrails, and the ones that are missing</h2>
+
+<p class="lede">A system that generates text in response to hate speech is a system that <em>can</em> generate text about protected groups. That deserves an explicit accounting rather than an assumption of good behaviour.</p>
+
+<h3>What constrains the output, and how strongly</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Mechanism</th><th>Route</th><th>Strength</th></tr></thead>
+<tbody>
+<tr><td><strong>Curated supervision.</strong> Every training target is an expert-written, NGO-reviewed counter-narrative, so the fine-tuned output distribution is pulled toward responses a trained practitioner would endorse.</td><td>fine-tuned</td><td><strong>Strong</strong> — it shapes the distribution itself rather than filtering it</td></tr>
+<tr><td><strong>A detection gate.</strong> Generation only runs on text a toxicity classifier has flagged, so the generator is not invoked on arbitrary input.</td><td>both</td><td>Moderate — it bounds <em>when</em> the generator runs, not what it produces</td></tr>
+<tr><td><strong>Prompt framing.</strong> Category-specific prompts instruct the model toward counter-speech.</td><td>prompt-based</td><td><strong>Weak</strong> — an instruction to a base model with no instruction tuning, which has no trained disposition to follow instructions at all</td></tr>
+<tr><td><strong>A termination token.</strong> <code>&lt;endofstring&gt;</code> stops generation rather than letting it run to the length cap.</td><td>fine-tuned</td><td>Weak as a safety measure; it bounds length, not content</td></tr>
+<tr><td><strong>A short length cap.</strong> <code>max_length: 50</code> limits how far an output can drift.</td><td>both</td><td>Weak, and incidental rather than designed</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note ok">
+<span class="tag">The structural point</span>
+<p><strong>The fine-tuned route is markedly safer than the prompt-based one, and the reason is architectural rather than incidental.</strong></p>
+<p>Prompting constrains the model with <em>text</em>, which a base model is free to ignore — and GPT-2 has no instruction tuning and therefore no trained disposition to treat an instruction as binding. Fine-tuning constrains it with the <em>training distribution</em>, which the model cannot ignore because it is what the weights encode.</p>
+<p>The general principle: for a task whose failure mode is harmful output, <strong>curated supervision is a safety mechanism and not merely a quality one.</strong> This is the same insight that RLHF and constitutional methods later formalised at scale — align the output distribution rather than filtering its samples.</p>
+</div>
+
+<h3>What is missing</h3>
+
+<p>Stated as a gap list rather than a criticism of a 2023 student project, because these are the components a deployed version would need:</p>
+
+<ul>
+<li><strong>No output-side toxicity filter.</strong> The generated counter-speech is never itself passed through the toxicity classifier that gated the input. That check is nearly free — the classifier is already loaded — and would catch the worst failure mode directly. This is the single most valuable missing piece.</li>
+<li><strong>No target-group consistency check.</strong> Nothing verifies that a response about Muslims does not inadvertently disparage a different group, which is a known failure mode of counter-narrative generation.</li>
+<li><strong>No refusal path.</strong> The system always generates. There is no branch for "this input is borderline" or "the generated candidate is unusable," and no fallback to a safe canned response.</li>
+<li><strong>No decode-time constraints.</strong> No repetition penalty, no n-gram blocking, no top-\(k\) or nucleus truncation, no bad-words list. Each of these is a one-line argument to <code>generate()</code>.</li>
+<li><strong>No human-in-the-loop at inference.</strong> CONAN was <em>built</em> with expert review in the loop; the system that learned from it has no equivalent. For deployment, the CONAN construction methodology is itself the obvious template — model drafts, expert approves, approved drafts improve the model.</li>
+<li><strong>Detector bias inherited, not audited.</strong> HateXplain's rationale training mitigates the over-flagging of group mentions, but the residual is not measured. A counter-speech system that fires on a member of the targeted group discussing their own experience would be actively harmful, and that is precisely the known failure mode of toxicity classifiers.</li>
+</ul>
+</section>
+
+
+<section>
+<h2 id="significance"><span class="num">06</span>Why this matters</h2>
+
+<h3>The moderation problem has not been solved by scale</h3>
+
+<p>Platform moderation still runs on detect-and-remove, and the three objections in §1 all still bind. Meanwhile the detection half has moved toward implicit hate precisely <em>because</em> explicit hate gets filtered — speakers adapt, and the surviving register is the one with no lexical signal. A pipeline built for implicit hate and designed to answer rather than delete addresses the part of the problem that remains open.</p>
+
+<h3>Counter-speech has evidence behind it</h3>
+
+<p>The approach is not speculative. Observational and field studies of organised counter-speech on social platforms have found measurable effects on subsequent behaviour, and NGOs run counter-narrative programmes as standing practice — which is why CONAN's expert annotators existed to be recruited. The bottleneck has always been that expert counter-speech does not scale: each response takes a trained person several minutes. Automated generation is the only route to volume.</p>
+
+<h3>What the pipeline design contributes</h3>
+
+<ul>
+<li><strong>Emotion as a first-class signal.</strong> The <code>offensive</code> + <code>joy</code> classification is the project's sharpest observation. Register-matching is necessary for counter-speech to land, and a toxicity score alone cannot supply it. This generalises past hate speech to any intervention where tone determines whether the content is heard.</li>
+<li><strong>Rationale-aware detection feeding generation.</strong> HateXplain localises the hateful span; a generator that knows which claim to answer can produce something specific rather than generic. The project assembles both halves without yet closing the loop — conditioning generation on the extracted span is the obvious next step and would attack the genericness problem directly.</li>
+<li><strong>Two approaches built and compared.</strong> Prompting versus fine-tuning is now the standard first decision in any applied LLM project, and the trade-off identified here — flexibility and zero training cost against quality and controllability — is the one that still applies. Building both rather than picking one is what makes the comparison informative.</li>
+<li><strong>Curated supervision as a safety mechanism.</strong> §5's structural point, arrived at by construction rather than by argument.</li>
+<li><strong>Publishing the training trace.</strong> Fifteen epochs of output on a fixed input is routinely generated during development and almost never published. It documents non-monotone learning, degenerate repetition at two scales, and a recognisable progression of rhetorical strategy.</li>
+</ul>
+</section>
+
+
+<section>
+<h2 id="limits"><span class="num">07</span>Limits</h2>
+
+<ul>
+<li><strong>No automatic evaluation metric is reported.</strong> The generation results are qualitative — sample outputs and the epoch trace. BLEU and ROUGE correlate poorly with counter-speech quality (a good counter-narrative need share no vocabulary with the reference), which is a real defence, but the absence of any quantitative comparison means prompt-based and fine-tuned cannot be ranked. BERTScore or an NLI-based measure of whether the response actually addresses the input's claim would be better-suited alternatives.</li>
+<li><strong>No human evaluation.</strong> Counter-speech quality is ultimately about persuasion, and that requires human raters — ideally from the affected community. The CONAN methodology shows expert review is feasible at this scale; applying it to the project's own outputs would be the natural next step.</li>
+<li><strong>Outputs are generic.</strong> "Islam is a religion of peace" answers no specific claim. The information needed to do better — HateXplain's rationale spans — is computed in the pipeline but not conditioned on during generation.</li>
+<li><strong>GPT-2 is small, and fully fine-tuned on 5,003 examples.</strong> 124M parameters updated on a small corpus is a high-variance regime, and the degenerate repetition in the trace is characteristic of it. The project's future-work section names experimenting with larger LLMs first.</li>
+<li><strong>Decoding is unconstrained sampling.</strong> No top-\(k\), no nucleus, no repetition penalty — all one-line changes that would likely improve output quality more than another epoch of training.</li>
+<li><strong>The checkpoint learned to generate hate speech too.</strong> Unless the loss was masked over the prompt half of each sequence, the model was trained to predict those tokens as well. Standard practice, and a real property of the artefact.</li>
+<li><strong>English only, seven target groups.</strong> CONAN covers DISABLED, JEWS, LGBT+, MIGRANTS, MUSLIMS, POC and WOMEN in English. Other groups, intersectional cases and other languages are out of scope, and cross-lingual counter-speech is substantially harder because de-escalation norms are themselves culture-specific.</li>
+<li><strong>Adversarial robustness untested.</strong> Implicit hate speech is already an adaptation to lexical filters. Speakers will adapt again, and nothing here measures how the detector holds up under deliberate evasion.</li>
+</ul>
+</section>
+
+
+<section>
+<h2 id="repro"><span class="num">08</span>Code and reproduction</h2>
+
+<pre class="tree"><code>MINI_PROJECT_SEM7/                 (Google Drive — linked from the README)
+├── data/                          Multi-Target CONAN — 5,003 pairs, 7 targets
+├── gpt2-finetuned/
+│   ├── config.json                GPT-2 small, fp32, vocab 50258
+│   ├── model.safetensors          498 MB — all 124M parameters
+│   ├── loss.txt                   training loss log
+│   ├── output.png                 loss curve
+│   └── vae-rnn-gpt2.ipynb         the fine-tuning notebook
+├── LLM_based_approach/            outputs of the fine-tuned route
+├── Prompt based.ipynb             the prompt-based route, end to end
+├── Mini_Project_Report_Sem7.pdf   the full report
+└── Mini Project PPT Sem7.pptx     presentation</code></pre>
+
+<div class="tablewrap">
+<table>
+<caption>The two pipelines side by side</caption>
+<thead><tr><th></th><th>Prompt-based</th><th>Fine-tuned</th></tr></thead>
+<tbody>
+<tr><td>Detection</td><td>HateBERT fine-tuned on ToxiGen</td><td>HateXplain + emotion classifier</td></tr>
+<tr><td>Generation</td><td>GPT-2, GPT-Neo-1.3B</td><td>GPT-2 fully fine-tuned on CONAN</td></tr>
+<tr><td>Conditioning</td><td>generic or category-specific prompt</td><td>hate→counter pairs with delimiters</td></tr>
+<tr><td>Training required</td><td>none</td><td>15 epochs, all 124M parameters, fp32</td></tr>
+<tr><td>Output control</td><td>prompt engineering only</td><td>learned from expert-written data</td></tr>
+<tr><td>Extending to new targets</td><td>write a new prompt</td><td>needs new annotated pairs</td></tr>
+<tr><td>Decoding</td><td>sampling</td><td>sampling, <code>max_length=50</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The fine-tuning format uses <code>&lt;bot&gt;</code> to mark the start of the counter-speech and <code>&lt;endofstring&gt;</code> to terminate it. The epoch-1 output in §4 — delimiters with nothing between them — is a direct consequence of this format being the easiest thing in the training distribution to learn, and of those delimiters being multi-token BPE sequences rather than registered special tokens.</p>
+
+<p>To reproduce: load the checkpoint with <code>AutoModelForCausalLM.from_pretrained("gpt2-finetuned/")</code>, prompt with the hate speech followed by the <code>&lt;bot&gt;:</code> delimiter, and generate. The saved <code>task_specific_params</code> apply <code>do_sample=True, max_length=50</code> by default; passing <code>top_p</code>, <code>top_k</code> or <code>repetition_penalty</code> explicitly to <code>generate()</code> is the first thing worth trying, since none are set in the config and all three target pathologies visible in the epoch trace.</p>
+</section>
+
+
+<nav class="pager" aria-label="Other documents in this set">
+<a class="prev" href="05-detection-of-computer-generated-text.html" rel="prev"><span class="dir">&larr; Previous</span><span class="t">Detection of Computer-Generated Text</span></a>
+<div class="spacer"></div>
+</nav>
+
+    </main>
+  </div>
+</div>
+
+<footer class="foot">
+  <div class="wrap">
+    <p><b>How this document was produced.</b> Written by reading the project's source code, reports and result files directly. Formulas, file paths, hyperparameters and numbers below were taken from the code as it stands, not from memory. Where the code and the written report disagree, both readings are shown and the disagreement is flagged rather than smoothed over.</p><p>As with the previous project, the GitHub repository is a pointer: the notebooks, the fine-tuned GPT-2 checkpoint and the report live in the linked Drive folder. The epoch-by-epoch generation trace and the pipeline description come from <code>Mini_Project_Report_Sem7.pdf</code>; the model's exact configuration — full fine-tuning, fp32, 124M parameters, the added vocabulary entry and the decoding settings — was read from the checkpoint's own <code>config.json</code> and file size, and is noted in the text where it goes beyond what the report states.</p>
+  </div>
+</footer>
+
+<button class="themer" id="themer" type="button">Theme</button>
+<script>
+(function(){
+  var b=document.getElementById('themer'), r=document.documentElement;
+  var saved=null; try{saved=localStorage.getItem('doc-theme')}catch(e){}
+  if(saved){r.setAttribute('data-theme',saved)}
+  b.addEventListener('click',function(){
+    var cur=r.getAttribute('data-theme');
+    if(!cur){cur=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}
+    var next=cur==='dark'?'light':'dark';
+    r.setAttribute('data-theme',next);
+    try{localStorage.setItem('doc-theme',next)}catch(e){}
+  });
+})();
+</script>
+
+</body>
+</html>

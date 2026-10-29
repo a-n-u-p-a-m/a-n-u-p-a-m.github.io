@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="en" >
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mechanistic Interpretability of Cross-Language Brain Alignment</title>
+<meta name="description" content="Five families of transformer internals benchmarked against the fMRI of 84 people listening to The Little Prince in English or Mandarin — testing whether a language model&#x27;s features are genuinely semantic or merely language-shaped.">
+<style>
+:root{
+  --bg:#fbfaf7; --bg-alt:#f3f1ea; --ink:#16181d; --ink-soft:#4a505c; --ink-faint:#767d8c;
+  --rule:#ddd9cd; --rule-soft:#e9e5db;
+  --accent:#7a4a1e; --accent-soft:#f0e4d4; --accent-ink:#5c3514;
+  --code-bg:#f5f2eb; --code-ink:#2d2a24;
+  --ok:#2f6b47; --warn:#8a5a10; --flag:#8d3030;
+  --max:min(1180px,100%);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131519; --bg-alt:#1a1d23; --ink:#e7e5e0; --ink-soft:#b2b6bf; --ink-faint:#858b97;
+    --rule:#2c3038; --rule-soft:#23262c;
+    --accent:#d9a86a; --accent-soft:#2a221a; --accent-ink:#e8c396;
+    --code-bg:#1c1f25; --code-ink:#dcd9d2;
+    --ok:#6fbf8e; --warn:#d6a44a; --flag:#e07b7b;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131519; --bg-alt:#1a1d23; --ink:#e7e5e0; --ink-soft:#b2b6bf; --ink-faint:#858b97;
+  --rule:#2c3038; --rule-soft:#23262c;
+  --accent:#d9a86a; --accent-soft:#2a221a; --accent-ink:#e8c396;
+  --code-bg:#1c1f25; --code-ink:#dcd9d2;
+  --ok:#6fbf8e; --warn:#d6a44a; --flag:#e07b7b;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:1.5rem}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:16.5px/1.68 "Iowan Old Style","Charter","Georgia","Source Serif 4",serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--max); margin:0 auto; padding:0 16px}
+.shell{display:grid; grid-template-columns:250px minmax(0,1fr); gap:46px; align-items:start}
+@media (max-width:900px){ .shell{grid-template-columns:1fr; gap:0} }
+
+/* ---------- masthead ---------- */
+header.mast{border-bottom:1px solid var(--rule); background:var(--bg-alt)}
+header.mast .wrap{padding-top:34px; padding-bottom:30px}
+.kicker{
+  font:600 11.5px/1 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:14px;
+}
+h1{font-size:clamp(27px,4.3vw,42px); line-height:1.14; margin:0 0 14px; font-weight:600; letter-spacing:-.015em}
+.standfirst{font-size:18px; color:var(--ink-soft); margin:0; max-width:62ch}
+.meta{
+  display:flex; flex-wrap:wrap; gap:8px 22px; margin-top:22px;
+  font:13px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink-faint);
+}
+.meta b{color:var(--ink-soft); font-weight:600}
+.meta a{color:var(--accent); text-decoration:none; border-bottom:1px solid var(--accent-soft)}
+.meta a:hover{border-bottom-color:var(--accent)}
+
+/* ---------- nav ---------- */
+nav.toc{
+  position:sticky; top:20px; padding:30px 0 40px;
+  font:13.5px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+nav.toc .lbl{font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:12px; font-weight:600}
+nav.toc ol{list-style:none; margin:0; padding:0; counter-reset:toc}
+nav.toc li{counter-increment:toc; margin:0 0 2px}
+nav.toc a{
+  display:block; padding:5px 10px 5px 30px; color:var(--ink-soft); text-decoration:none;
+  border-left:2px solid transparent; border-radius:0 4px 4px 0; position:relative;
+}
+nav.toc a::before{
+  content:counter(toc); position:absolute; left:8px; color:var(--ink-faint);
+  font-variant-numeric:tabular-nums; font-size:11.5px; top:6px;
+}
+nav.toc a:hover{background:var(--bg-alt); color:var(--ink)}
+@media (max-width:900px){
+  nav.toc{position:static; padding:24px 0 8px; border-bottom:1px solid var(--rule-soft)}
+  nav.toc ol{columns:2; column-gap:20px}
+}
+
+/* ---------- body ---------- */
+main{padding:34px 0 90px; min-width:0}
+section{margin:0 0 56px; scroll-margin-top:20px}
+h2{
+  font-size:clamp(21px,2.8vw,27px); font-weight:600; letter-spacing:-.01em;
+  margin:0 0 6px; padding-bottom:10px; border-bottom:1px solid var(--rule);
+}
+h2 .num{color:var(--accent); font-variant-numeric:tabular-nums; margin-right:12px; font-size:.78em; font-weight:600}
+h3{font-size:18.5px; font-weight:600; margin:34px 0 8px; color:var(--ink)}
+h4{font-size:15.5px; font-weight:600; margin:24px 0 6px; color:var(--ink-soft);
+   font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.005em}
+p{margin:0 0 15px; max-width:74ch}
+ul,ol{margin:0 0 15px; padding-left:24px; max-width:74ch}
+li{margin:0 0 7px}
+li > ul, li > ol{margin-top:7px}
+strong{font-weight:600}
+em{font-style:italic}
+a{color:var(--accent)}
+hr{border:0; border-top:1px solid var(--rule-soft); margin:34px 0}
+.lede{font-size:17.5px; color:var(--ink-soft); max-width:70ch}
+
+/* ---------- code ---------- */
+code{
+  font:0.875em/1.5 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  background:var(--code-bg); color:var(--code-ink); padding:.13em .38em; border-radius:3px;
+  border:1px solid var(--rule-soft); word-break:break-word;
+}
+pre{
+  background:var(--code-bg); border:1px solid var(--rule-soft); border-radius:7px;
+  padding:15px 17px; overflow-x:auto; margin:0 0 18px;
+  font:13px/1.62 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  color:var(--code-ink);
+}
+pre code{background:none; border:0; padding:0; font-size:inherit; word-break:normal}
+pre.tree{font-size:12.3px; line-height:1.55}
+.filename{
+  font:600 11.5px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:var(--ink-faint); margin:0 0 6px; letter-spacing:.02em;
+}
+.filename::before{content:"▸ "; color:var(--accent)}
+
+/* ---------- callouts ---------- */
+.note{
+  border-left:3px solid var(--accent); background:var(--accent-soft);
+  padding:14px 18px; margin:0 0 20px; border-radius:0 6px 6px 0; max-width:76ch;
+}
+.note p:last-child{margin-bottom:0}
+.note .tag{
+  display:block; font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent-ink); margin-bottom:8px;
+}
+.note.flag{border-left-color:var(--flag)} .note.flag .tag{color:var(--flag)}
+.note.ok{border-left-color:var(--ok)} .note.ok .tag{color:var(--ok)}
+.note.warn{border-left-color:var(--warn)} .note.warn .tag{color:var(--warn)}
+.note.plain{background:var(--bg-alt); border-left-color:var(--rule)}
+.note.plain .tag{color:var(--ink-faint)}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto; margin:0 0 20px; -webkit-overflow-scrolling:touch}
+table{
+  border-collapse:collapse; width:100%; min-width:430px;
+  font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+caption{
+  caption-side:top; text-align:left; font-size:12.5px; color:var(--ink-faint);
+  padding:0 0 8px; font-family:ui-sans-serif,system-ui,sans-serif;
+}
+th,td{padding:8px 13px; text-align:left; border-bottom:1px solid var(--rule-soft); vertical-align:top}
+th{
+  font-weight:600; font-size:12px; letter-spacing:.055em; text-transform:uppercase;
+  color:var(--ink-faint); border-bottom:1px solid var(--rule); white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:1px solid var(--rule)}
+td.num,th.num{text-align:right; font-variant-numeric:tabular-nums}
+tbody tr:hover{background:var(--bg-alt)}
+td code{font-size:.84em}
+
+/* ---------- misc ---------- */
+.deck{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); margin:0 0 22px}
+.card{border:1px solid var(--rule-soft); border-radius:8px; padding:14px 16px; background:var(--bg-alt)}
+.card .k{
+  font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-faint); margin-bottom:7px;
+}
+.card .v{font-size:21px; font-weight:600; letter-spacing:-.01em; font-variant-numeric:tabular-nums}
+.card .d{font-size:13px; color:var(--ink-soft); margin-top:5px; line-height:1.45;
+         font-family:ui-sans-serif,system-ui,sans-serif}
+figure{margin:0 0 22px}
+figure svg{display:block; width:100%; height:auto; max-width:100%}
+figcaption{font-size:13px; color:var(--ink-faint); margin-top:9px; max-width:70ch;
+           font-family:ui-sans-serif,system-ui,sans-serif; line-height:1.5}
+.eq{
+  background:var(--bg-alt); border:1px solid var(--rule-soft); border-radius:7px;
+  padding:4px 18px; margin:0 0 18px; overflow-x:auto;
+}
+.pill{
+  display:inline-block; font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.07em;
+  text-transform:uppercase; padding:4px 9px; border-radius:20px;
+  background:var(--accent-soft); color:var(--accent-ink); margin:0 6px 6px 0;
+}
+.srconly{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+footer.foot{
+  border-top:1px solid var(--rule); background:var(--bg-alt); padding:24px 0 40px;
+  font:13.5px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink-faint);
+}
+footer.foot .wrap{max-width:var(--max)}
+footer.foot p{max-width:76ch; margin:0 0 9px}
+.themer{
+  position:fixed; right:14px; bottom:14px; z-index:50;
+  border:1px solid var(--rule); background:var(--bg-alt); color:var(--ink-soft);
+  border-radius:20px; padding:7px 14px; cursor:pointer;
+  font:600 12px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.04em;
+}
+.themer:hover{color:var(--ink); border-color:var(--accent)}
+@media print{ .themer,nav.toc{display:none} .shell{grid-template-columns:1fr} body{background:#fff;color:#000} }
+mjx-container{overflow-x:auto; overflow-y:hidden; max-width:100%}
+mjx-container[display="true"]{margin:.7em 0 !important}
+
+/* ---------- set navigation ---------- */
+.setbar{border-bottom:1px solid var(--rule-soft); background:var(--bg)}
+.setbar .wrap{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding-top:11px; padding-bottom:11px;
+  font:13px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.setbar a{color:var(--ink-soft); text-decoration:none}
+.setbar a:hover{color:var(--accent)}
+.setbar .home{font-weight:600; color:var(--ink-soft); white-space:nowrap}
+.setbar .home span{color:var(--accent)}
+.setbar .pos{color:var(--ink-faint); font-variant-numeric:tabular-nums; white-space:nowrap}
+.setbar .jump{display:flex; gap:14px; align-items:center; min-width:0}
+.setbar .jump a{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+@media (max-width:700px){ .setbar .jump .lbl2{display:none} }
+
+nav.toc .sibs{margin-top:26px; padding-top:18px; border-top:1px solid var(--rule-soft)}
+nav.toc .sibs ul{list-style:none; margin:0; padding:0}
+nav.toc .sibs li{margin:0 0 1px; counter-increment:none}
+nav.toc .sibs a{
+  display:block; padding:5px 10px 5px 30px; color:var(--ink-faint); text-decoration:none;
+  border-left:2px solid transparent; border-radius:0 4px 4px 0; position:relative; font-size:13px;
+}
+nav.toc .sibs a .n{position:absolute; left:8px; font-variant-numeric:tabular-nums; font-size:11.5px}
+nav.toc .sibs a:hover{background:var(--bg-alt); color:var(--ink)}
+nav.toc .sibs a[aria-current="page"]{
+  color:var(--ink); font-weight:600; border-left-color:var(--accent); background:var(--accent-soft);
+}
+
+.pager{
+  display:grid; gap:14px; grid-template-columns:1fr 1fr; margin:10px 0 0;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (max-width:620px){ .pager{grid-template-columns:1fr} }
+.pager a{
+  display:block; border:1px solid var(--rule-soft); border-radius:8px; padding:14px 16px;
+  text-decoration:none; background:var(--bg-alt); color:var(--ink);
+}
+.pager a:hover{border-color:var(--accent)}
+.pager .dir{
+  display:block; font:600 10.5px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:7px;
+}
+.pager .t{display:block; font-size:14.5px; font-weight:600; line-height:1.35}
+.pager .next{text-align:right}
+.pager .spacer{border:1px dashed var(--rule-soft); border-radius:8px; opacity:.35}
+
+/* ---------- index page ---------- */
+.indexwrap{max-width:900px; margin:0 auto; padding:0 16px}
+main.index{padding:36px 0 80px}
+.projlist{display:flex; flex-direction:column; gap:16px; margin:0 0 44px}
+.proj{
+  display:block; border:1px solid var(--rule-soft); border-radius:10px; padding:20px 22px;
+  text-decoration:none; color:var(--ink); background:var(--bg-alt); position:relative;
+}
+.proj:hover{border-color:var(--accent)}
+.proj .pnum{
+  font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.14em; color:var(--accent);
+  display:block; margin-bottom:9px;
+}
+.proj h3{margin:0 0 8px; font-size:20px; font-weight:600; letter-spacing:-.01em; line-height:1.25}
+.proj p{margin:0 0 12px; color:var(--ink-soft); font-size:15.5px; max-width:68ch}
+.proj .tags{display:flex; flex-wrap:wrap; gap:6px 8px; font-family:ui-sans-serif,system-ui,sans-serif}
+.proj .tag2{
+  font-size:11.5px; letter-spacing:.03em; color:var(--ink-faint);
+  border:1px solid var(--rule-soft); border-radius:20px; padding:3px 10px; background:var(--bg);
+}
+.proj .when{
+  position:absolute; top:20px; right:22px; font:12px/1 ui-sans-serif,system-ui,sans-serif;
+  color:var(--ink-faint); font-variant-numeric:tabular-nums;
+}
+@media (max-width:620px){ .proj .when{position:static; display:block; margin-bottom:9px} }
+</style>
+
+<script>
+window.MathJax={
+  tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']],processEscapes:true},
+  options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']},
+  chtml:{scale:0.98}
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
+
+</head>
+<body>
+<div class="setbar">
+  <div class="wrap">
+    <a class="home" href="index.html">&#8962; <span>Anupam Dwivedi — Project Portfolio</span></a>
+    <div class="jump"><a href="01-tgn-mechanistic-interpretability.html" rel="prev">&larr; <span class="lbl2">Reverse-Engineering a TGN</span></a><a href="03-algorithmic-collusion-audit-mechanism.html" rel="next"><span class="lbl2">Algorithmic Collusion Audits</span> &rarr;</a></div>
+    <span class="pos">2 / 6</span>
+  </div>
+</div>
+
+<header class="mast">
+  <div class="wrap">
+    <div class="kicker">Project 02 &nbsp;·&nbsp; Interpretability × Neuroscience</div>
+    <h1>Mechanistic Interpretability of Cross-Language Brain Alignment</h1>
+    <p class="standfirst">Five families of transformer internals benchmarked against the fMRI of 84 people listening to The Little Prince in English or Mandarin — testing whether a language model's features are genuinely semantic or merely language-shaped.</p>
+    <div class="meta">
+        <span><b>Period</b> Mar – May 2026</span>
+        <span><b>Repository</b> <a href="https://github.com/a-n-u-p-a-m/Team-16">Team-16</a></span>
+        <span><b>Stack</b> PyTorch · HuggingFace · PEFT · bitsandbytes · nilearn · scikit-learn</span>
+        <span><b>Dataset</b> ds003643 — 84 subjects (49 EN / 35 CN)</span>
+        <span><b>Type</b> Group project (3) · SAE + normalization families led solo</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="shell">
+    <nav class="toc" aria-label="Contents">
+      <div class="lbl">Contents</div>
+      <ol>
+        <li><a href="#question">The question, and why English–Chinese is the hard case</a></li>
+        <li><a href="#fmri">What fMRI actually measures</a></li>
+        <li><a href="#pipeline">The measurement chain</a></li>
+        <li><a href="#saes">Sparse autoencoders: the problem they solve</a></li>
+        <li><a href="#peft">Adaptation: SI, IT, LoRA, QLoRA, DoRA</a></li>
+        <li><a href="#results">Results: three deliverables</a></li>
+        <li><a href="#paradox">The reconstruction–alignment paradox</a></li>
+        <li><a href="#norms">The normalization baseline, and the control it provides</a></li>
+        <li><a href="#others">The other three families, in brief</a></li>
+        <li><a href="#significance">Why this matters</a></li>
+        <li><a href="#limits">Limits worth stating</a></li>
+        <li><a href="#repro">Repository and reproduction</a></li>
+      </ol>
+      <div class="sibs">
+        <div class="lbl">The other projects</div>
+        <ul>
+          <li><a href="01-tgn-mechanistic-interpretability.html"><span class="n">01</span>Reverse-Engineering a TGN</a></li>
+          <li><a href="02-cross-language-brain-alignment.html" aria-current="page"><span class="n">02</span>Cross-Language Brain Alignment</a></li>
+          <li><a href="03-algorithmic-collusion-audit-mechanism.html"><span class="n">03</span>Algorithmic Collusion Audits</a></li>
+          <li><a href="04-spectral-soil-modeler.html"><span class="n">04</span>Spectral Soil Modeler</a></li>
+          <li><a href="05-detection-of-computer-generated-text.html"><span class="n">05</span>Detecting Machine Text</a></li>
+          <li><a href="06-hate-speech-and-counter-speech.html"><span class="n">06</span>Hate &amp; Counter Speech</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main>
+<section>
+<h2 id="question"><span class="num">01</span>The question, and why English–Chinese is the hard case</h2>
+
+<p class="lede">When a language model represents the sentence "the little prince lived on a tiny planet," is it representing <em>English</em>, or is it representing a small boy on a small world? The two are hard to tell apart from inside the model. They come apart cleanly when you ask whether the same representation predicts what a Mandarin speaker's brain does while hearing the same story.</p>
+
+<p>This is Project C4 of the CSAI 2026 Mechanistic Interpretability track, which comprises five parallel projects (C1–C5) on different datasets and language pairs, each delivering the same three standardised artefacts. C4 draws the hardest pairing in the track.</p>
+
+<div class="tablewrap">
+<table>
+<caption>The five C-track projects — C4 is the one covered here</caption>
+<thead><tr><th>Project</th><th>Dataset</th><th>Modality / branch</th><th>Stress test</th></tr></thead>
+<tbody>
+<tr><td>C1</td><td>ds005345</td><td>fMRI, full</td><td>narrative + multi-talker</td></tr>
+<tr><td>C2</td><td>ds005345</td><td>EEG, full</td><td>temporal dynamics</td></tr>
+<tr><td>C3</td><td>ds003643</td><td>fMRI [English, French]</td><td>typologically <em>similar</em> languages</td></tr>
+<tr><td><strong>C4</strong></td><td><strong>ds003643</strong></td><td><strong>fMRI [English, Chinese]</strong></td><td><strong>typologically distant languages</strong></td></tr>
+<tr><td>C5</td><td>ds005346</td><td>fMRI + MEG</td><td>multimodal movie stimuli</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>English and Mandarin differ at every level of linguistic structure — writing system (alphabetic vs. logographic), phonology (non-tonal vs. tonal), morphology (inflectional vs. isolating), and syntax. The one thing they share, in this experiment, is <em>semantic content</em>: both groups heard the same story. That makes C4 the strongest available falsification test for the hypothesis that LLM internal features are genuinely semantic rather than language-specific surface regularities.</p>
+
+<p>The logic is a clean dissociation. Train a mapping from model features to brain activity using only English subjects. Apply it, with no retraining, to Chinese subjects. If the prediction holds, the features cannot be encoding English — the Chinese brains were never shown to the model or to the regression. If it collapses, the features were language-shaped all along.</p>
+
+<div class="note plain">
+<span class="tag">Contributions</span>
+<p>Three-person project. The work described in detail here — the <strong>Sparse Autoencoder family and the Normalization-layer family</strong>, including both families' Feature Atlases, Architecture-Sensitivity Maps, Stability Reports, cross-language transfer benchmarks and zero-shot alignment experiments — was led by Anupam Dwivedi. The attention-variant family (Garima Mittal) and the positional-encoding / activation-function families (Abdul Rahman) are summarised in <a href="#others">§9</a> for context, since the headline cross-architecture comparison depends on all five.</p>
+</div>
+</section>
+
+
+<section>
+<h2 id="fmri"><span class="num">02</span>What fMRI actually measures</h2>
+
+<p class="lede">Every methodological choice downstream follows from three physical facts about the signal. They are worth stating before any modelling.</p>
+
+<h3>The BOLD signal is a proxy, and a slow one</h3>
+
+<p>Functional MRI does not measure neural activity. It measures <strong>blood-oxygen-level-dependent</strong> contrast: haemoglobin is diamagnetic when oxygenated and paramagnetic when not, so the ratio of the two alters the local magnetic susceptibility and hence the MR signal. When a cortical region becomes more active, local blood flow over-compensates for the oxygen consumed, so oxygenation <em>rises</em>.</p>
+
+<p>Three consequences follow, and each one is a line of code later:</p>
+
+<ol>
+<li><strong>It is delayed and smeared.</strong> The haemodynamic response function (HRF) rises over roughly 4–6 seconds, peaks, and undershoots before returning to baseline — total duration 20–30 s for an impulse of neural activity. Neural events are therefore convolved with a slow kernel before they are observed at all.</li>
+<li><strong>It is sampled coarsely.</strong> One volume every TR = 2.0 s here. Speech arrives at 2–4 words per second, so each fMRI sample integrates several words.</li>
+<li><strong>It is noisy.</strong> Head motion, cardiac and respiratory cycles, scanner drift and thermal noise all enter. The practical consequence is a <em>noise ceiling</em>: the same subject hearing the same passage twice does not correlate perfectly with themselves, and no model can beat that bound.</li>
+</ol>
+
+<h3>Parcellation: 200 regions instead of ~200,000 voxels</h3>
+
+<p>A whole-brain scan at 2 mm resolution yields on the order of 200,000 voxels. The pipeline reduces this to <strong>200 cortical parcels</strong> using the Schaefer 2018 atlas, which averages voxels within functionally-defined regions derived from resting-state connectivity.</p>
+
+<div class="note">
+<span class="tag">Design decision: parcellation, and the alternatives</span>
+<p><strong>Why not voxels?</strong> Averaging within a parcel raises signal-to-noise roughly as \(\sqrt{n_{\text{voxels}}}\) for independent noise, cuts the number of regressions from 200,000 to 200, and makes results anatomically interpretable rather than a cloud of coordinates. The cost is spatial resolution: if a feature is encoded in a sub-parcel patch, parcel-averaging dilutes it.</p>
+<p><strong>Alternatives:</strong> a <em>searchlight</em> analysis fits models in small moving spheres, preserving locality at enormous compute cost and with a multiple-comparisons problem across every sphere. <em>Voxel selection</em> — keeping the top-\(k\) most variable voxels — is what the attention-variant family did instead (top-1000 in MNIColin27 space), which is why those numbers are on a different scale and <strong>not comparable</strong> to these. <em>ICA</em> or <em>PCA</em> on voxels gives data-driven components that are harder to name anatomically.</p>
+<p>Schaefer specifically, rather than the older AAL or Desikan–Killiany atlases, because it is derived from function rather than macro-anatomy, and it comes in resolutions from 100 to 1000 parcels so the granularity is a tunable rather than a given. The activation-function family used the 100-parcel version; this work used 200.</p>
+</div>
+</section>
+
+
+<section>
+<h2 id="pipeline"><span class="num">03</span>The measurement chain</h2>
+
+<h3>The dataset</h3>
+
+<div class="deck">
+<div class="card"><div class="k">Subjects</div><div class="v">84</div><div class="d">49 English, 35 Chinese, after quality filtering</div></div>
+<div class="card"><div class="k">Parcels</div><div class="v">200</div><div class="d">Schaefer 2018 cortical atlas, 2mm resolution</div></div>
+<div class="card"><div class="k">TR</div><div class="v">2.0 s</div><div class="d">one fMRI volume every two seconds</div></div>
+<div class="card"><div class="k">Stimulus</div><div class="v">9 sections</div><div class="d">per language, with word-level onset annotations</div></div>
+</div>
+
+<h3>Three alignment problems</h3>
+
+<h4>1. Language and brain run on different clocks</h4>
+
+<p>The model produces one hidden state per <em>token</em>. The scanner produces one volume per <em>two seconds</em>. Bridging them requires knowing when each word was spoken, then pooling the tokens that fall in each 2-second bin. The annotation files give word-level onsets; the code propagates each word's onset to all of its subword tokens:</p>
+
+<pre><code>def build_token_onset_map(words, onsets, tokenizer):
+    token_onsets = []
+    for word, onset in zip(words, onsets):
+        subtokens = tokenizer.encode(" " + str(word), add_special_tokens=False)
+        token_onsets.extend([onset] * len(subtokens))
+    return np.array(token_onsets, dtype=np.float64)</code></pre>
+
+<p>Assigning every subtoken the <em>word's</em> onset is an approximation — subtokens of a multi-syllable word are not simultaneous — but at TR = 2.0 s the error is far below the sampling interval, so it cannot matter. What <em>can</em> matter is a systematic offset, which is the next point.</p>
+
+<div class="note">
+<span class="tag">A one-token bug worth noticing</span>
+<p>The leading space in <code>" " + str(word)</code> is not cosmetic. Byte-pair encoders treat <code>"prince"</code> and <code>" prince"</code> as <em>different tokens</em>, because the space is part of the token in GPT-style BPE. Encoding the full text without a leading space while building the onset map <em>with</em> one produces a one-token offset between the two arrays.</p>
+<p>Every hidden state would then be attributed to the wrong moment in time — a drift small enough to survive review and large enough to corrupt every alignment score. The code has an explicit comment marking this as the fix.</p>
+<p>The same function also handles the mismatch case defensively: if the onset array ends up shorter than the token array it pads with the last known onset; if longer, it truncates. Either way the two arrays end up the same length, and a silent length mismatch cannot propagate into a misaligned regression.</p>
+</div>
+
+<h4>2. Long text does not fit in a context window</h4>
+
+<p>Each story section is far longer than the 128-token window used for extraction. The code chunks with <code>max_tokens=128</code> and <code>stride=64</code>, giving 64 tokens of overlap, and then keeps only the <em>non-overlapping</em> portion of each chunk's output — tracked as <code>own_start</code> in the chunk spec.</p>
+
+<p>The reason to discard the overlap is causal masking. In a decoder-only model, the hidden state at position \(i\) attends only to positions \(\le i\), so the first token of a chunk has <em>no</em> left context and the next few have very little. Their hidden states represent "this word, cold" rather than "this word, in this narrative." Keeping only tokens that had a full 64-token history means measuring the model's contextual representation rather than its cold start.</p>
+
+<p>The trade-off is compute: a stride of 64 with a window of 128 means every token is processed twice. A stride of 128 (no overlap) would halve the cost and reintroduce the cold-start problem at every chunk boundary.</p>
+
+<h4>3. Blood is slow — the lag stack</h4>
+
+<p>Rather than assume a single canonical HRF delay, the pipeline <strong>stacks</strong> five lags:</p>
+
+<div class="eq">
+\[
+X_t \;=\; \big[\, h_{t-1} \,\|\, h_{t-2} \,\|\, h_{t-3} \,\|\, h_{t-4} \,\|\, h_{t-5} \,\big] \;\in\; \mathbb{R}^{5d}
+\]
+</div>
+
+<p>with \(\tau \in \{1,\ldots,5\}\) TRs covering 2–10 seconds, which brackets the HRF peak.</p>
+
+<div class="note plain">
+<span class="tag">Design decision: lag stacking vs. HRF convolution</span>
+<p>The classical approach convolves the stimulus regressor with a canonical double-gamma HRF and fits one coefficient per feature. That assumes the HRF shape, and HRF shape genuinely varies by cortical region, by subject, and with age and vasculature.</p>
+<p>Lag stacking makes no such assumption: it hands the regression five time-shifted copies and lets the fitted weights discover the effective impulse response per parcel. A learned non-negative weighting across the five lags <em>is</em> a discretised HRF. Strictly more expressive than any fixed kernel, and it costs a 5× widening of the design matrix — which is affordable only because ridge is doing the regularising.</p>
+<p>The alternatives: <em>fit the HRF per voxel</em> (more parameters, harder to estimate from this much data), or <em>use a basis set</em> such as the canonical HRF plus its temporal and dispersion derivatives (three regressors instead of five, a middle ground that assumes a shape family rather than a shape).</p>
+</div>
+
+<h3>The encoding model</h3>
+
+<p>For each parcel \(j\), fit ridge regression from stacked model features to that parcel's time series:</p>
+
+<div class="eq">
+\[
+\hat\beta_j = \arg\min_{\beta}\; \lVert y_j - X\beta \rVert_2^2 + \alpha \lVert \beta \rVert_2^2
+\qquad\Longrightarrow\qquad
+\hat\beta_j = (X^\top X + \alpha I)^{-1} X^\top y_j
+\]
+</div>
+
+<p>with \(\alpha = 100\). The reported metric is Pearson \(R\) between predicted and held-out actual signal, averaged over the 200 parcels and then over subjects.</p>
+
+<h4>Why ridge, specifically</h4>
+
+<p>This is not a default — it is forced by the shape of the problem, and the alternatives fail for identifiable reasons.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Estimator</th><th>Why not</th></tr></thead>
+<tbody>
+<tr><td><strong>OLS</strong></td><td>\(X\) has \(5 \times 7168 = 35{,}840\) columns against a few hundred time points. \(X^\top X\) is singular — the problem is massively underdetermined and has infinitely many zero-error solutions, none of which generalise. The \(\alpha I\) term is what makes the inverse exist at all; the penalty is doing structural work, not just regularisation.</td></tr>
+<tr><td><strong>Lasso (L1)</strong></td><td>Produces sparse \(\beta\) by selecting among correlated predictors essentially arbitrarily. SAE latents are correlated, so lasso would pick one of a correlated group and zero the rest — fine for prediction, destructive for the Feature Atlas, whose whole purpose is a stable per-parcel weight map. It is also far slower: no closed form, and a coordinate-descent path per parcel per subject.</td></tr>
+<tr><td><strong>Elastic net</strong></td><td>Mitigates lasso's arbitrary selection but adds a second hyperparameter to tune across 100 configurations × 84 subjects, for no gain on a metric that does not reward sparsity.</td></tr>
+<tr><td><strong>PCR</strong></td><td>Project onto top principal components, then regress. The components are chosen by variance in \(X\) alone, with no reference to the brain signal — so a direction that dominates activation variance but predicts nothing survives, while a low-variance predictive direction is discarded.</td></tr>
+<tr><td><strong>Ridge</strong></td><td><strong>Chosen.</strong> Closed form (one solve, reusable across parcels), handles \(p \gg n\), shrinks correlated predictors <em>together</em> rather than choosing between them — which is exactly right when groups of latents genuinely share information — and yields dense, comparable weight maps.</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>A note on \(\alpha = 100\) as a fixed value rather than a tuned one: tuning \(\alpha\) per parcel per subject per configuration would multiply an already large grid by an inner CV loop. Fixing it trades a little per-cell performance for a uniform treatment across all cells — which is the right trade when the object of study is the <em>comparison between configurations</em>, since a tuned \(\alpha\) would let configurations differ in regularisation strength as well as in representation, confounding the thing being measured.</p>
+
+<div class="note warn">
+<span class="tag">Cross-validation by story section, not by time point</span>
+<p>Folds are <strong>GroupKFold with story sections as groups</strong>. This is the single most important methodological guard in the pipeline.</p>
+<p>Consecutive fMRI time points are heavily autocorrelated — the BOLD signal is smooth on the order of seconds, so \(y_t\) and \(y_{t+1}\) are nearly the same measurement. Under a random split, time point \(t\) lands in train and \(t{+}1\) in test, and a model can score well by <em>interpolating between neighbouring training points</em> without having learned anything about language at all. The reported \(R\) would be a measure of signal smoothness.</p>
+<p>Grouping by section guarantees held-out data comes from a passage the regression never saw. This is the most common way encoding-model results get inflated, and the pipeline closes it.</p>
+</div>
+
+<h3>One engineering decision worth naming</h3>
+
+<p>The ridge solve was moved to a GPU backend (tagged <code>torch_gpu_dual_v1</code>) with a 256-wide target chunk, letting all 200 parcels be solved in one pass. The arithmetic explains why: the grid is 5 SAE variants × 4 layers × 5 adaptation regimes × 84 subjects, and each cell requires a \(35{,}840 \times 35{,}840\) system — or, via the dual form, an \(n \times n\) one where \(n\) is the number of time points.</p>
+
+<p>That dual formulation is the "dual" in the backend's name and it is the key optimisation. By the matrix inversion lemma,</p>
+
+<div class="eq">
+\[
+(X^\top X + \alpha I)^{-1}X^\top \;=\; X^\top (XX^\top + \alpha I)^{-1}
+\]
+</div>
+
+<p>so when \(n \ll p\) — a few hundred time points against 35,840 features — one solves an \(n\times n\) system instead of a \(p \times p\) one. That is the difference between a \(35{,}840^3\) factorisation and a \(300^3\) one: roughly nine orders of magnitude. Solving all parcels in one chunked call then amortises the single factorisation across all 200 right-hand sides, because \(XX^\top\) does not depend on which parcel is the target.</p>
+
+<p>Results are cached keyed on <code>(activation_source, variant, latent_dim)</code> plus a <code>ridge_backend</code> tag, so a re-run skips any SAE already trained and any alignment already computed <em>under the same backend</em>. Including the backend in the key is a small but correct detail: numerics differ between CPU and GPU solves, so results from different backends should not be silently mixed.</p>
+</section>
+
+
+<section>
+<h2 id="saes"><span class="num">04</span>Sparse autoencoders: the problem they solve</h2>
+
+<h3>Superposition, and why hidden states are hard to read</h3>
+
+<p>The motivating observation: a transformer has far more features it would like to represent than it has dimensions. Qwen-2.5-0.5B carries \(d = 896\) dimensions per layer, and the number of distinguishable concepts in natural language is vastly larger.</p>
+
+<p>The <strong>superposition hypothesis</strong> says the model resolves this by packing features into <em>nearly</em>-orthogonal directions rather than exactly-orthogonal ones. This works because of a fact from compressed sensing: in \(d\) dimensions you can place exponentially many unit vectors with pairwise cosine similarity below \(\varepsilon\) (the Johnson–Lindenstrauss bound), and if features are <em>sparse</em> — only a few active at a time — the interference between them is rarely large enough to matter.</p>
+
+<p>The consequence for interpretability is <strong>polysemanticity</strong>: an individual neuron participates in many unrelated features, so reading neuron 412 tells you nothing coherent. The basis the model computes in is not the basis its features live in.</p>
+
+<h3>What an SAE does about it</h3>
+
+<p>A sparse autoencoder tries to recover the feature basis. Project the hidden state up into a much wider space, force almost all coordinates to zero, and reconstruct:</p>
+
+<div class="eq">
+\[
+z = \mathrm{enc}(x) \in \mathbb{R}^{d_{\text{latent}}}, \qquad
+\hat x = W_{\text{dec}}\, z, \qquad
+\mathcal{L} = \lVert x - \hat x \rVert_2^2 + \lambda \lVert z \rVert_1
+\]
+</div>
+
+<p>The bet is that in the wider, sparser basis, individual latents become <em>monosemantic</em> — one latent, one concept. Here \(d_{\text{in}} = 896\) and \(d_{\text{latent}} = 7168\), an <strong>8× expansion</strong>.</p>
+
+<p>Two parts of that loss deserve unpacking:</p>
+
+<ul>
+<li><strong>Why L1 and not L0.</strong> The quantity actually wanted is \(\lVert z\rVert_0\), the count of non-zeros. That is non-differentiable and combinatorial. L1 is its tightest convex relaxation, and — this is the useful property — minimising an L1 penalty subject to a reconstruction constraint provably recovers sparse solutions under conditions studied in compressed sensing. L1 is a computational stand-in for the thing you want.</li>
+<li><strong>Why the decoder has no bias.</strong> <code>nn.Linear(d_latent, d_in, bias=False)</code>. A decoder bias would let the model reconstruct a constant offset "for free" without spending any latent on it, which both inflates apparent reconstruction quality and means the latents no longer span the represented content.</li>
+</ul>
+
+<h3>The five variants, and what each one fixes</h3>
+
+<p>All five live in one unified <code>SparseAutoencoder</code> class, differing only in the encoder's non-linearity and in what the decoder does with the result. Each variant exists because the vanilla recipe has a specific known pathology.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Variant</th><th>Encoder</th><th>The pathology it addresses</th></tr></thead>
+<tbody>
+<tr><td><strong>Vanilla</strong></td><td>\(z = \mathrm{ReLU}(W_e x + b_e)\)</td><td>none — this is the monosemanticity baseline everything else is measured against</td></tr>
+<tr><td><strong>Gated</strong></td><td>\(z = \mathbb{1}[W_g x &gt; 0] \odot \mathrm{ReLU}(W_m x + b_m)\)</td><td><em>Shrinkage bias.</em> In a vanilla SAE the L1 term penalises every active latent's magnitude, so it does not only deactivate spurious latents — it also systematically <strong>under-estimates the magnitude of genuine ones</strong>. Separating the <em>which latents fire</em> decision (a gate, which L1 acts on) from the <em>how much</em> decision (a magnitude path, which it does not) lets the penalty enforce sparsity without distorting amplitude.</td></tr>
+<tr><td><strong>JumpReLU</strong></td><td>\(z = z_{\text{pre}} \odot \mathbb{1}[z_{\text{pre}} &gt; \mathrm{softplus}(\theta)]\)</td><td>Same shrinkage problem, different fix: a learnable per-latent threshold replaces the global penalty. Below threshold, exactly zero; above it, the value passes through <em>unshrunk</em>. The <code>softplus</code> keeps \(\theta\) positive while remaining differentiable — a raw parameter could go negative and make the threshold meaningless.</td></tr>
+<tr><td><strong>BatchTopK</strong></td><td>keep the top \(k \cdot B\) activations across the whole batch</td><td><em>Sparsity is a hyperparameter you cannot control.</em> With an L1 penalty, the achieved sparsity depends on \(\lambda\) in a way that must be tuned per layer and per model. A top-\(k\) constraint sets it exactly, by construction. Note the loss has <strong>no L1 term at all</strong> — sparsity is structural, so penalising magnitude would only reintroduce shrinkage.</td></tr>
+<tr><td><strong>Hierarchical</strong><br>(Matryoshka)</td><td>\(z = \mathrm{ReLU}(W_e x + b_e)\), decoded at nested prefix lengths</td><td><em>No notion of feature importance.</em> A vanilla SAE's latents are unordered. Here, prefixes of sizes \(\{d/8, d/4, d/2, d\}\) each get their own decoder and each must reconstruct \(x\) alone, forcing the first latents to carry the coarsest, most important structure — a learned ordering, analogous to PCA's eigenvalue ordering but in a sparse basis.</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The BatchTopK implementation is worth reading for how it achieves a batch-level budget in one <code>topk</code> call over a flattened tensor:</p>
+
+<pre><code>z = F.relu(z_pre)
+k = min(self.topk * z.shape[0], z.numel())
+flat = z.reshape(-1)
+_, flat_idx = torch.topk(flat, k=k)
+mask = torch.zeros_like(flat).scatter_(0, flat_idx, 1.0).reshape_as(z)
+return z * mask</code></pre>
+
+<p>This is a <em>batch</em> budget, not a per-token one, and the distinction is the point of BatchTopK over plain TopK: a token carrying unusual content can spend more than \(k\) latents if a neighbouring token spends fewer. Per-token TopK forces every token to use exactly \(k\) features, including tokens that need two. The cost is that the sparsity of any individual token now depends on its batch-mates, which makes inference mildly batch-dependent.</p>
+
+<p>And the loss function, which dispatches on variant:</p>
+
+<pre><code>if variant == 'hierarchical':
+    total_recon = sum((1.0 / len(x_hat)) * F.mse_loss(xh, x) for xh in x_hat)
+    return total_recon + l1_lambda * z.abs().mean()
+if variant == 'batchtopk':
+    return F.mse_loss(x_hat, x)          # no L1 — sparsity is structural
+return F.mse_loss(x_hat, x) + l1_lambda * z.abs().mean()</code></pre>
+
+<p>Training uses AdamW with a cosine LR schedule, gradient clipping at norm 1.0, and checkpoint-on-best-validation-reconstruction. AdamW rather than Adam matters here: the two differ in whether weight decay is coupled to the adaptive learning rate, and for a model whose decoder weights determine the feature directions, decoupled decay gives more predictable shrinkage. The cosine schedule anneals to near zero, which stabilises the final feature directions — a constant LR leaves the latents still drifting at the point you checkpoint them.</p>
+</section>
+
+
+<section>
+<h2 id="peft"><span class="num">05</span>Adaptation: SI, IT, LoRA, QLoRA, DoRA</h2>
+
+<p class="lede">The grid varies not only the SAE but how the <em>backbone</em> was adapted before hidden states were extracted. These five regimes are a ladder of increasing intervention, and each rung introduces a confound the previous one did not have.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Regime</th><th class="num">Trainable params</th><th>What it is</th></tr></thead>
+<tbody>
+<tr><td>SI — straight inference</td><td class="num">0</td><td>frozen pretrained weights; the cleanest baseline, since any alignment is attributable to representation quality rather than task adaptation</td></tr>
+<tr><td>IT — instruction tuned</td><td class="num">full</td><td>Qwen-2.5-0.5B-Instruct, i.e. a different checkpoint rather than a fine-tune performed here</td></tr>
+<tr><td>LoRA</td><td class="num">~4.4M</td><td>low-rank adapters on the attention projections</td></tr>
+<tr><td>QLoRA</td><td class="num">~4.4M</td><td>LoRA over a 4-bit NF4-quantised backbone</td></tr>
+<tr><td>DoRA</td><td class="num">~4.6M</td><td>weight-decomposed LoRA</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The ordering is deliberate and follows the track specification: straight inference first because it is the cleanest scientific baseline, instruction tuning only when the task format demands it, then LoRA, then QLoRA when memory is the binding constraint, and more elaborate PEFT methods last. Each step adds a confound; taking them in order means you know which one introduced it.</p>
+
+<h3>Why parameter-efficient fine-tuning exists</h3>
+
+<p>Full fine-tuning updates every weight. For a 0.5B model in fp16 that means 1 GB of weights, 1 GB of gradients, and — because Adam keeps first and second moments per parameter in fp32 — another 4 GB of optimiser state, before activations. Roughly 6–8 GB to train a model whose weights are 1 GB, and the ratio worsens with scale.</p>
+
+<p>It is also <em>wasteful</em> if the hypothesis behind LoRA holds: that the weight <em>update</em> required to adapt a pretrained model to a new task has low intrinsic rank, even though the weights themselves are full-rank.</p>
+
+<h3>LoRA, mechanically</h3>
+
+<p>Freeze \(W_0 \in \mathbb{R}^{d \times k}\). Learn a low-rank correction:</p>
+
+<div class="eq">
+\[
+W = W_0 + \Delta W = W_0 + \frac{\alpha}{r} BA,
+\qquad B \in \mathbb{R}^{d\times r},\; A \in \mathbb{R}^{r \times k},\; r \ll \min(d,k)
+\]
+</div>
+
+<p>Here \(r = 8\) and \(\alpha = 16\), so the scaling factor \(\alpha/r = 2\). Trainable parameters drop from \(dk\) to \(r(d+k)\) — for a \(896\times896\) projection, from 802,816 to 14,336, a <strong>98.2% reduction</strong> per matrix.</p>
+
+<p>Two implementation details matter:</p>
+
+<ul>
+<li><strong>Initialisation is asymmetric.</strong> \(A\) is random (Gaussian or Kaiming), \(B\) is <em>zero</em>. So \(\Delta W = BA = 0\) at step zero and the adapted model is exactly the pretrained model. Training starts from the pretrained function rather than a perturbation of it. Initialising both randomly would inject noise into a model that was already good.</li>
+<li><strong>The \(\alpha/r\) scaling decouples rank from effective learning rate.</strong> Without it, raising \(r\) would increase the magnitude of \(\Delta W\) and implicitly change the step size, so rank could not be swept independently.</li>
+</ul>
+
+<p>At inference, \(BA\) can be folded into \(W_0\), so a merged LoRA model has <strong>zero added latency</strong> — unlike adapter layers, which insert extra modules into the forward pass and cost latency permanently.</p>
+
+<h4>Which modules get adapted, and why that is a scientific choice</h4>
+
+<pre><code>PEFT_TARGET_MODULES = ['q_proj', 'k_proj', 'v_proj', 'o_proj']
+PEFT_LORA_R = 8 · PEFT_LORA_ALPHA = 16 · PEFT_LORA_DROPOUT = 0.05
+PEFT_TRAIN_EPOCHS = 2 · PEFT_LEARNING_RATE = 2e-4</code></pre>
+
+<p>Attention projections only — the MLP blocks are untouched. In the original LoRA paper, adapting attention proved sufficient for most tasks. In <em>this</em> study it is also a <strong>confound control</strong>: the sibling experiments sweep activation functions (which live in the MLP) and positional encodings. Adapting MLP weights would mean the activation-function comparison was partly a comparison of how well each activation tolerated LoRA. The report states this rationale explicitly, and it is the kind of discipline that distinguishes a controlled sweep from a leaderboard.</p>
+
+<p>The learning rate of \(2\times10^{-4}\) is two orders of magnitude above a typical full fine-tuning rate (\(\sim2\times10^{-5}\)). That is standard for LoRA and follows from the zero-initialised \(B\): the adapter starts with no effect and must move meaningfully within a short budget, and it cannot damage the pretrained weights because those are frozen.</p>
+
+<h3>QLoRA and NF4 quantisation</h3>
+
+<p>QLoRA keeps LoRA's adapters and additionally quantises the <em>frozen base</em> to 4 bits:</p>
+
+<pre><code>QUANT_CONFIG = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_compute_dtype=torch.float16,
+    bnb_4bit_quant_type='nf4',
+    bnb_4bit_use_double_quant=True,
+)</code></pre>
+
+<p>Three distinct ideas in four lines:</p>
+
+<ol>
+<li><strong>NF4 — NormalFloat4.</strong> Ordinary 4-bit quantisation spaces its 16 levels uniformly. But neural network weights are approximately zero-centred Gaussian, so uniform levels waste most of their resolution on tails that are nearly empty. NF4 places its levels at the <em>quantiles</em> of a standard normal, so each level is equally likely to be used — information-theoretically optimal for Gaussian data, and a strictly better use of 16 symbols.</li>
+<li><strong>Double quantisation.</strong> Quantisation works in blocks, each with its own fp32 scale constant. At one constant per 64 weights, those constants themselves cost \(32/64 = 0.5\) bits per weight — more than 10% of the 4-bit budget. Double quantisation quantises the constants too, recovering roughly 0.37 bits per parameter.</li>
+<li><strong>Compute dtype fp16.</strong> Weights are <em>stored</em> in 4 bits and <em>dequantised to fp16 for each matmul</em>. Nothing computes in 4-bit arithmetic. The saving is memory, not FLOPs — and the dequantisation kernel is real added work, which is why QLoRA is slower than LoRA despite using less memory.</li>
+</ol>
+
+<p>Gradients still flow through the frozen quantised weights to reach the adapters; the base is never updated, so quantisation error does not compound.</p>
+
+<h3>DoRA</h3>
+
+<p>Weight-Decomposed Low-Rank Adaptation starts from an observation about what full fine-tuning actually does: decompose any weight matrix into a magnitude and a direction,</p>
+
+<div class="eq">
+\[
+W = m \cdot \frac{V}{\lVert V \rVert_c}
+\]
+</div>
+
+<p>where \(m\) is a per-column magnitude vector and the fraction is the normalised direction. Empirically, full fine-tuning makes <em>large</em> changes to magnitude with <em>small</em> directional changes; LoRA tends to couple the two. DoRA trains \(m\) directly and applies the LoRA update only to \(V\), decoupling them — hence the ~0.2M extra parameters over LoRA, which are precisely the magnitude vectors.</p>
+
+<p>The reported benefit is better training stability, and this study offers a small independent data point: DoRA is the best regime for the Gated SAE in the stability table, though the margin is inside the noise.</p>
+
+<div class="note plain">
+<span class="tag">Design decision: why PEFT at all, when the backbone could be frozen</span>
+<p>SI — frozen weights — is the cleanest baseline, and arguably the most scientifically interpretable. The adaptation regimes exist to answer a different question: <em>does task adaptation make representations more or less brain-like?</em></p>
+<p>That matters because the two plausible answers are both interesting. Adaptation could sharpen the semantic content (more brain-like), or it could specialise the model toward a task format the brain is not performing (less brain-like). The grid measures which happens, and the answer is not uniform — LoRA wins for three SAE variants on per-subject stability, while the <em>base</em> model wins on the best-configuration Feature Atlas and <strong>QLoRA</strong> wins the zero-shot transfer benchmark outright.</p>
+<p>The alternative design — one regime, chosen by argument — would have produced a cleaner story and a weaker one.</p>
+</div>
+</section>
+
+
+<section>
+<h2 id="results"><span class="num">06</span>Results: three deliverables</h2>
+
+<p>Every project in the track produces the same three artefacts. They answer three different questions: <em>where</em> in the brain, <em>which</em> architectural choice, and <em>how reliably</em>.</p>
+
+<h3>Deliverable 1 — the Feature Atlas</h3>
+
+<p>Per-parcel ridge weights for each variant's best configuration, projected onto the 200 cortical parcels. This answers "where in the brain does this representation live."</p>
+
+<div class="tablewrap">
+<table>
+<caption>SAE Feature Atlas summary — best configuration per variant</caption>
+<thead><tr><th>Variant</th><th>Best config</th><th class="num">Mean R</th><th class="num">Weight μ ± σ</th></tr></thead>
+<tbody>
+<tr><td>Hierarchical</td><td>Base, L5</td><td class="num">0.069</td><td class="num">0.048 ± 0.009</td></tr>
+<tr><td>Vanilla</td><td>Base, L5</td><td class="num">0.066</td><td class="num">0.044 ± 0.010</td></tr>
+<tr><td>Gated</td><td>Base, L5</td><td class="num">0.066</td><td class="num">0.032 ± 0.005</td></tr>
+<tr><td>BatchTopK</td><td>Base, L5</td><td class="num">0.054</td><td class="num">0.052 ± 0.007</td></tr>
+<tr><td>JumpReLU</td><td>Base, L5</td><td class="num">0.050</td><td class="num">0.057 ± 0.009</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Deliverable 2 — the Architecture-Sensitivity Map</h3>
+
+<div class="tablewrap">
+<table>
+<caption>SAE architecture sensitivity — best and mean alignment R per variant</caption>
+<thead><tr><th>Variant</th><th class="num">Best layer</th><th class="num">Best R</th><th class="num">Mean R</th><th class="num">Range</th></tr></thead>
+<tbody>
+<tr><td><strong>Vanilla</strong></td><td class="num">11</td><td class="num">0.0790</td><td class="num">0.0626</td><td class="num">0.045</td></tr>
+<tr><td><strong>Gated</strong></td><td class="num">11</td><td class="num">0.0790</td><td class="num">0.0614</td><td class="num">0.047</td></tr>
+<tr><td>Hierarchical</td><td class="num">11</td><td class="num">0.0777</td><td class="num">0.0598</td><td class="num">0.051</td></tr>
+<tr><td>JumpReLU</td><td class="num">11</td><td class="num">0.0577</td><td class="num">0.0483</td><td class="num">0.029</td></tr>
+<tr><td>BatchTopK</td><td class="num">11</td><td class="num">0.0557</td><td class="num">0.0442</td><td class="num">0.036</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Two things stand out. First, <strong>all five variants peak at layer 11</strong> — the middle of a 24-layer model. That is a textbook finding in the brain-encoding literature: early layers carry lexical and surface form, late layers specialise toward next-token prediction, and the middle carries the abstract semantic content that the brain's language network is also computing. The architectural choice shifts the <em>magnitude</em>, never the location.</p>
+
+<p>Layers were selected by <em>fraction</em> of depth — \(\{0.25, 0.5, 0.75, 1.0\}\) of 24 layers, giving 5, 11, 17 and 23 — rather than by absolute index. That is deliberate: fractional selection makes the sweep comparable across models of different depths, which matters for a track whose sibling projects use backbones of 2, 3 and 12 layers.</p>
+
+<p>Second, the two variants that win are the two simplest. Vanilla and Gated beat JumpReLU and BatchTopK by roughly 40%. The variants engineered for better reconstruction fidelity are <em>not</em> the variants that best predict brains — a direct instance of a tension running through the SAE literature. One plausible mechanism: a hard sparsity constraint (BatchTopK) or an aggressive threshold (JumpReLU) discards low-magnitude latents, and in a distributed semantic code the many small contributions may be exactly what the ridge regression needs. Optimising for reconstruction of the dominant directions is not the same as preserving the information a downstream linear readout can use.</p>
+
+<div class="note plain">
+<span class="tag">Reading the R values honestly</span>
+<p>\(R \approx 0.08\) sounds low if you are used to machine-learning benchmarks. It is not, in this setting. fMRI has a low <em>noise ceiling</em>: the same subject listening to the same passage twice correlates with itself only modestly, and that self-correlation upper-bounds what any model can achieve. These values are in the normal published range for single-subject parcel-level encoding models and are consistent across 84 subjects and 4 layers.</p>
+<p>Note also that the report quotes two different aggregations and they should not be confused: <strong>best-configuration R</strong> (0.079, the peak cell in the grid) and <strong>per-subject mean R</strong> (≈0.063, averaged over 336 subject × layer observations). Both appear in the tables here; the headline "0.079" is the former.</p>
+</div>
+
+<h3>Deliverable 3 — the Stability Report</h3>
+
+<div class="tablewrap">
+<table>
+<caption>SAE stability — best adaptation regime per variant (84 subjects × 4 layers = 336 observations per cell)</caption>
+<thead><tr><th>Variant</th><th>Best regime</th><th class="num">Mean R</th><th class="num">Std</th><th class="num">IQR</th></tr></thead>
+<tbody>
+<tr><td>Vanilla</td><td>LoRA</td><td class="num">0.063</td><td class="num">0.034</td><td class="num">0.048</td></tr>
+<tr><td>Gated</td><td>DoRA</td><td class="num">0.062</td><td class="num">0.034</td><td class="num">0.048</td></tr>
+<tr><td>Hierarchical</td><td>QLoRA</td><td class="num">0.060</td><td class="num">0.034</td><td class="num">0.053</td></tr>
+<tr><td>JumpReLU</td><td>LoRA</td><td class="num">0.049</td><td class="num">0.027</td><td class="num">0.035</td></tr>
+<tr><td>BatchTopK</td><td>LoRA</td><td class="num">0.045</td><td class="num">0.026</td><td class="num">0.033</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The standard deviations are of the same order as the means, which is the honest headline: <strong>individual differences between people dominate architectural differences between models</strong>. Subject-band stratification makes this concrete — top-quartile subjects reach \(R > 0.075\) while bottom-quartile subjects stay below \(R < 0.035\), a spread larger than the entire gap between the best and worst SAE variant.</p>
+
+<p>This is why the Stability Report is a required deliverable rather than an appendix. Any claim of the form "architecture X aligns better than architecture Y" has to clear the inter-subject noise floor, and most such claims in this field do not.</p>
+
+<h3>The language gap</h3>
+
+<p>English subjects score 0.002–0.010 higher than Chinese subjects across all configurations, with the largest advantage for Vanilla SAE (\(\Delta R \approx 0.010\)). <strong>95% confidence intervals cross zero for every variant</strong>, so the difference is not statistically significant. Reporting a consistent-direction, non-significant effect as non-significant — rather than as a "trend" — is the correct call.</p>
+</section>
+
+
+<section>
+<h2 id="paradox"><span class="num">07</span>The reconstruction–alignment paradox</h2>
+
+<p>This is the project's most interesting result, and it comes from two measurements that appear to contradict each other.</p>
+
+<h3>Measurement one: the SAE cannot transfer</h3>
+
+<div class="tablewrap">
+<table>
+<caption>Cross-language reconstruction MSE — lower is better</caption>
+<thead><tr><th>SAE</th><th class="num">EN→EN</th><th class="num">CN→CN</th><th class="num">EN→CN</th><th class="num">CN→EN</th><th class="num">Degradation</th></tr></thead>
+<tbody>
+<tr><td>Gated</td><td class="num">0.096</td><td class="num">0.085</td><td class="num">7.35</td><td class="num">4.85</td><td class="num">~70×</td></tr>
+<tr><td>Hierarchical</td><td class="num">0.137</td><td class="num">0.062</td><td class="num">7.62</td><td class="num">6.87</td><td class="num">~90×</td></tr>
+<tr><td>Vanilla</td><td class="num">0.099</td><td class="num">0.080</td><td class="num">19.45</td><td class="num">10.78</td><td class="num">~170×</td></tr>
+<tr><td>JumpReLU</td><td class="num">0.095</td><td class="num">0.099</td><td class="num">6.55</td><td class="num">9.71</td><td class="num">~85×</td></tr>
+<tr><td>BatchTopK</td><td class="num">1.161</td><td class="num">0.771</td><td class="num">13.30</td><td class="num">13.77</td><td class="num">~14×</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Cross-language MSE is <strong>50–200× higher</strong> than same-language. By this measure the transfer is a total failure. The geometry of Qwen's activation space is strongly language-specific: English and Chinese activations occupy different regions, and a decoder fitted to one is lost in the other.</p>
+
+<p>BatchTopK is the interesting row — the worst same-language reconstruction (1.161) but the <em>best</em> relative cross-language degradation (~14×). A fixed sparsity budget forces it to use a coarser, more generic code, which reconstructs less well in-domain and travels better out of it. That is the bias–variance trade-off appearing in an unusual place.</p>
+
+<h3>Measurement two: the SAE <em>can</em> transfer</h3>
+
+<div class="tablewrap">
+<table>
+<caption>Zero-shot cross-language brain alignment (5 subjects, GroupKFold)</caption>
+<thead><tr><th>Regime</th><th>SAE</th><th class="num">Layer</th><th class="num">EN→CN</th><th class="num">CN→EN</th><th class="num">Mean R</th></tr></thead>
+<tbody>
+<tr><td><strong>QLoRA</strong></td><td>Vanilla</td><td class="num">11</td><td class="num">0.064</td><td class="num">0.073</td><td class="num"><strong>0.068</strong></td></tr>
+<tr><td>Base</td><td>Vanilla</td><td class="num">11</td><td class="num">0.045</td><td class="num">0.062</td><td class="num">0.054</td></tr>
+<tr><td>LoRA</td><td>Vanilla</td><td class="num">11</td><td class="num">0.032</td><td class="num">0.055</td><td class="num">0.043</td></tr>
+<tr><td>DoRA</td><td>Gated</td><td class="num">11</td><td class="num">0.043</td><td class="num">0.038</td><td class="num">0.041</td></tr>
+<tr><td>IT</td><td>Gated</td><td class="num">11</td><td class="num">0.041</td><td class="num">0.040</td><td class="num">0.040</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>An encoding model fitted entirely on English data predicts Chinese brain activity at \(R = 0.064\) — against a within-language ceiling of 0.079. The transfer retains roughly <strong>81%</strong> of same-language performance.</p>
+
+<h3>The resolution</h3>
+
+<div class="note ok">
+<span class="tag">Why both results are true</span>
+<p>The SAE cannot reconstruct cross-language activation <em>vectors</em> (MSE 50–200× worse), yet its features predict cross-language brain <em>activity</em> (R retains ~81%).</p>
+<p>These are only contradictory if you assume brain alignment requires faithful reconstruction. It does not. Reconstruction demands getting the full 896-dimensional geometry right, <em>including everything language-specific</em> — token statistics, morphological structure, script-level regularities, positional habits. Brain prediction only demands getting right the <em>subspace the brain also tracks</em>, which is the semantic one.</p>
+<p>So the dissociation is informative rather than puzzling. The SAE's latent basis contains two kinds of structure: a large, language-specific component that dominates squared reconstruction error, and a smaller, language-invariant semantic component that survives transfer. The ridge regression, free to weight latents however it likes, selects the second and ignores the first.</p>
+<p>The deeper point is about <strong>what a loss function measures versus what you care about</strong>. MSE is a sum over all 896 dimensions, so it is dominated by whichever components have the largest variance — and those are the language-specific ones. A metric that weights all directions equally will always be dominated by the directions that vary most, which need not be the directions that matter.</p>
+</div>
+
+<p>The QLoRA result is a second, smaller surprise. QLoRA — LoRA over a 4-bit quantised backbone — achieves the <em>highest</em> cross-language symmetry, beating full-precision LoRA and the frozen base. The plausible mechanism is that NF4 quantisation noise acts as a regulariser: a weight perturbation of bounded magnitude at every layer discourages the backbone from fitting fine-grained, language-specific detail, nudging representations toward coarser structure that transfers. Memory-saving as accidental regularisation is a recurring pattern, and this is a clean instance — though with \(n=5\) subjects it is a strong hint rather than a settled result.</p>
+</section>
+
+
+<section>
+<h2 id="norms"><span class="num">08</span>The normalization baseline, and the control it provides</h2>
+
+<p>The SAE results mean nothing without a reference. Is 0.079 good? Compared to what?</p>
+
+<p>The normalization family is that reference. Five strategies applied <em>directly to raw hidden states</em>, with no SAE in the path — same layers, same regimes, same ridge pipeline, 100 configurations total.</p>
+
+<div class="tablewrap">
+<table>
+<caption>What each normalization actually computes</caption>
+<thead><tr><th>Norm</th><th>Operation</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>LayerNorm</td><td>\(\gamma\odot\frac{x-\mu}{\sigma}+\beta\), statistics over the feature dimension</td><td>the default in most transformers</td></tr>
+<tr><td>RMSNorm</td><td>\(\gamma\odot\frac{x}{\sqrt{\overline{x^2}}}\) — <strong>no mean subtraction</strong></td><td>Qwen 2.5's own normalization; cheaper, and empirically as good</td></tr>
+<tr><td>ScaleNorm</td><td>\(g\cdot\frac{x}{\lVert x\rVert_2}\) — a single learned scalar</td><td>the minimal version: project to a sphere of learned radius</td></tr>
+<tr><td>DeepNorm</td><td>LayerNorm with residual scaling tuned for very deep stacks</td><td>addresses training stability at depth, not representation</td></tr>
+<tr><td>BatchNorm</td><td>statistics over the <em>batch</em>, not the feature dimension</td><td>a conceptual control — batch statistics are wrong for sequence models, included to show the metric responds to a genuinely bad choice</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="tablewrap">
+<table>
+<caption>Normalization stability summary — best regime per norm</caption>
+<thead><tr><th>Norm</th><th>Best regime</th><th class="num">Mean R</th><th class="num">Std</th><th class="num">Median</th><th class="num">IQR</th></tr></thead>
+<tbody>
+<tr><td>RMSNorm</td><td>LoRA</td><td class="num">0.0450</td><td class="num">0.025</td><td class="num">0.043</td><td class="num">0.034</td></tr>
+<tr><td>ScaleNorm</td><td>LoRA</td><td class="num">0.0450</td><td class="num">0.025</td><td class="num">0.043</td><td class="num">0.034</td></tr>
+<tr><td>LayerNorm</td><td>LoRA</td><td class="num">0.0450</td><td class="num">0.025</td><td class="num">0.043</td><td class="num">0.034</td></tr>
+<tr><td>DeepNorm</td><td>LoRA</td><td class="num">0.0401</td><td class="num">0.023</td><td class="num">0.039</td><td class="num">0.031</td></tr>
+<tr><td>BatchNorm</td><td>DoRA</td><td class="num">0.0379</td><td class="num">0.022</td><td class="num">0.038</td><td class="num">0.031</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Two findings</h3>
+
+<p><strong>SAE features beat every normalization baseline by ~75%.</strong> Best SAE \(R = 0.079\) against best norm \(R = 0.045\). Sparse decomposition is not cosmetic — it extracts something from the hidden state that a rescaling of that same state does not expose. Since both operate on identical inputs through an identical pipeline, the gap is attributable to the decomposition itself.</p>
+
+<p><strong>RMSNorm ≈ ScaleNorm ≈ LayerNorm to within \(\Delta R < 0.0001\).</strong> Three genuinely different operations produce indistinguishable alignment, and the explanation is exact rather than hand-waved.</p>
+
+<p>Each of the three applies an affine map: subtract something, divide by something, optionally scale and shift. Ridge regression fits \(\hat y = X\beta\). If \(X' = (X - \mathbf{1}c^\top)D\) for a constant vector \(c\) and diagonal \(D\), then any prediction achievable from \(X'\) is achievable from \(X\) by setting \(\beta = D\beta'\) and absorbing the shift into the intercept. <strong>The transformation is invertible and linear, so it cannot change the span of the regression's reachable functions</strong> — it changes only the parameterisation, and therefore only how the \(\alpha\lVert\beta\rVert^2\) penalty distributes across coordinates. That residual effect is what produces a \(\Delta R\) of order \(10^{-5}\) rather than exactly zero.</p>
+
+<div class="note">
+<span class="tag">Why a null result is worth the compute</span>
+<p>Running 100 configurations to discover that three of them are identical looks wasteful until you consider the alternative: publishing an SAE number with nothing to compare it against.</p>
+<p>The norm family does three jobs at once. It establishes the <strong>floor</strong> (0.045) that makes 0.079 interpretable. It confirms the pipeline responds to <em>real</em> representational differences rather than to any perturbation whatsoever — SAEs move the number, rescalings do not. And the RMSNorm/ScaleNorm/LayerNorm equivalence is a <strong>positive control on the metric itself</strong>: those three <em>should</em> be equivalent under ridge, and if they had differed, something would have been wrong with the measurement rather than interesting about the models.</p>
+<p>That last use is the most valuable and the least common. A result you can predict analytically, measured empirically, is a test of your instrument.</p>
+</div>
+</section>
+
+
+<section>
+<h2 id="others"><span class="num">09</span>The other three families, in brief</h2>
+
+<p>The headline cross-architecture comparison needs all five families, so the other three are summarised here for completeness. These were led by the other team members.</p>
+
+<h3>Attention variants (MHA, MQA, GQA, MHLA)</h3>
+
+<p>Four attention mechanisms implemented from scratch in a shared MiniTransformer backbone (\(d=128\), 4 heads, 4 layers), differing only in KV strategy. The distinction is about the key–value cache, which dominates memory during autoregressive inference:</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Variant</th><th>KV strategy</th><th>Trade-off</th></tr></thead>
+<tbody>
+<tr><td>MHA</td><td>\(H\) independent key/value heads</td><td>full capacity, largest cache</td></tr>
+<tr><td>MQA</td><td>one key/value head shared by all \(H\) query heads</td><td>~40% fewer attention parameters, \(H\times\) smaller cache, some quality loss</td></tr>
+<tr><td>GQA</td><td>\(G=2\) key/value groups</td><td>interpolates between the two; what most modern models ship</td></tr>
+<tr><td>MHLA</td><td>low-rank latent KV bottleneck at 25% of \(d_{\text{model}}\)</td><td>compresses rather than shares; cache scales with the latent, not the heads</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Evaluated with RidgeCV and leave-one-out CV against the top-1000 most-variable voxels in MNIColin27 space. These numbers use a <em>different</em> metric from the SAE work — LOO <strong>pattern</strong> \(R\), correlating predicted against actual voxel patterns, rather than parcel-wise time-series \(R\) — and are far larger in absolute terms. <strong>They are not comparable to the SAE numbers.</strong></p>
+
+<div class="tablewrap">
+<table>
+<caption>Marginal mean pattern R by variant and language</caption>
+<thead><tr><th>Variant</th><th class="num">EN mean R</th><th class="num">ZH mean R</th><th class="num">ΔR</th><th class="num">Wilcoxon p</th><th>Stable?</th></tr></thead>
+<tbody>
+<tr><td>MHA</td><td class="num">0.7098</td><td class="num">0.1554</td><td class="num">0.5544</td><td class="num">0.0005</td><td>No</td></tr>
+<tr><td>MQA</td><td class="num">0.7112</td><td class="num">0.1589</td><td class="num">0.5523</td><td class="num">0.0005</td><td>No</td></tr>
+<tr><td>GQA</td><td class="num">0.7109</td><td class="num">0.1560</td><td class="num">0.5550</td><td class="num">0.0005</td><td>No</td></tr>
+<tr><td>MHLA</td><td class="num">0.7106</td><td class="num">0.1601</td><td class="num">0.5504</td><td class="num">0.0005</td><td>No</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The EN–ZH gap is enormous and significant for every variant. The backbone was trained on nine bilingual sentences — one per LPP run — which is a very small training signal, and the resulting model evidently learned English far better than Mandarin. MHA and GQA show the flattest layer-sensitivity profiles and the narrowest bootstrap CIs (1000 iterations), making them the most stable; MHLA's latent compression amplifies inter-subject variance. A separate sweep covers 4 variants × 5 model dimensions × 5 depths = 100 scalability conditions. The Wilcoxon signed-rank test is used rather than a \(t\)-test because the per-subject \(R\) distributions are not symmetric and \(n\) is small.</p>
+
+<h3>Activation functions and positional encodings</h3>
+
+<p>Both use a purpose-built <code>TinyCausalTransformer</code> at two scales (tiny: \(d{=}64\), 2L, ~376K params; small: \(d{=}96\), 3L, ~750K), with <code>intfloat/multilingual-e5-small</code> (117.65M params) as a frozen pretrained upper-bound reference. Five activations (ReLU, GELU, GEGLU, SwiGLU, SoLU) and five positional encodings (Sinusoidal, Learned, RoPE, ALiBi, XPOS), swept across poolings, context windows (8/20/45/90 s) and HRF lags (4/6/8/10 s) — 960 and 1440 controlled rows respectively.</p>
+
+<p>Three design choices in that sweep are worth noting. LoRA adapters are restricted to <code>attn.qkv</code> and <code>attn.out</code> only, never the MLP — because adapting MLP weights would confound the activation comparison, and adapting positional embeddings would defeat the PE study. Features are PCA-reduced to 96 components before ridge, both as regularisation and to <em>equalise dimensionality across model scales</em>, so a larger model does not win merely by having wider features. And every condition is paired with a <strong>shuffled-label ridge baseline</strong> confirming positive \(R\) exceeds chance.</p>
+
+<p>Headline findings: <strong>SoLU</strong> (\(x \cdot \mathrm{softmax}(x)\), the interpretability-motivated activation designed to encourage monosemantic neurons by suppressing all but the largest activations) is the only activation with positive cross-language transfer, at +0.0056 — a suggestive result given that SoLU and SAEs are two attacks on the same superposition problem. And across all positional encodings the <em>pretrained backbone dominates</em>: capacity and pretraining matter far more than the choice of positional scheme, with sinusoidal best among the controlled variants.</p>
+</section>
+
+
+<section>
+<h2 id="significance"><span class="num">10</span>Why this matters</h2>
+
+<h3>For interpretability</h3>
+
+<p>The field's standing problem is validation. An SAE latent that appears to fire on "references to royalty" might be a real feature or might be a convenient post-hoc story about a direction in activation space. The usual checks are internal — reconstruction loss, sparsity, whether a human finds the top activations coherent — and they are all vulnerable to the same circularity: the model and the explanation come from the same place.</p>
+
+<p>Brain data is an <em>external</em> criterion. A biological system that was never trained on next-token prediction, never saw these activations, and implements language in an entirely different substrate nonetheless shows measurable correspondence with a specific subspace of the model's representations. That correspondence cannot be an artefact of the interpretability method, because the brain is not downstream of it.</p>
+
+<p>The zero-shot cross-language result tightens this further. It is not enough that English features predict English brains; that could reflect shared surface statistics of the English stimulus. English features predicting <em>Mandarin</em> brains, with no refitting, isolates the semantic component — there is no shared surface form left to explain it.</p>
+
+<h3>For neuroscience</h3>
+
+<p>A longstanding question is whether the brain's language network computes a language-independent semantic representation or runs language-specific machinery end to end. Evidence usually comes from bilingual subjects, who are confounded by proficiency, age of acquisition and switching cost. Here the subjects are monolingual-in-task and the invariance is carried by the <em>model</em>, which provides a shared coordinate system between two groups that share no linguistic surface form at all. The result supports a language-invariant semantic layer, consistent with but methodologically independent of the bilingual literature.</p>
+
+<h3>For practice</h3>
+
+<ul>
+<li><strong>Middle layers, consistently.</strong> All five SAE variants peak at layer 11 of 24. If you are extracting features for any semantic downstream task, the middle of the stack is where to look, and the architectural choice does not move that.</li>
+<li><strong>Simple SAEs won.</strong> Vanilla and Gated beat JumpReLU and BatchTopK by ~40% on brain alignment despite the latter being designed for better reconstruction. Optimising an SAE for reconstruction fidelity does not optimise it for representational usefulness — if you care about the second, measure the second.</li>
+<li><strong>Quantisation may help generalisation.</strong> QLoRA's top cross-language symmetry suggests 4-bit noise functions as a regulariser. Worth testing deliberately rather than treating quantisation as a pure cost.</li>
+<li><strong>Measure your baseline floor.</strong> The normalization family exists only to answer "compared to what," and it is what converts 0.079 from a number into a result.</li>
+<li><strong>Group your CV folds by the right unit.</strong> Story section here; subject, site or session elsewhere. Random splits over autocorrelated data inflate scores silently and are the single most common error in this literature.</li>
+</ul>
+</section>
+
+
+<section>
+<h2 id="limits"><span class="num">11</span>Limits worth stating</h2>
+
+<ul>
+<li><strong>The zero-shot benchmark uses 5 subjects.</strong> The headline \(R = 0.064\) is the most important number in the project and rests on the smallest sample in it. The full-grid results use all 84; the transfer result does not, and should be read as a strong indication rather than a settled estimate.</li>
+<li><strong>Effect sizes sit inside inter-subject variance.</strong> Std ≈ mean throughout. The Q4-vs-Q1 subject spread (>0.075 vs <0.035) exceeds the entire best-to-worst variant gap. Architecture rankings are stable in <em>direction</em> but should not be over-read in magnitude.</li>
+<li><strong>Three metrics are in play and are not interchangeable.</strong> SAE/normalization use parcel-wise time-series \(R\) over 200 Schaefer parcels; attention uses LOO pattern \(R\) over top-1000 voxels; activation/PE use PCA-reduced ridge with sliding context windows. The 0.71 attention figure and the 0.079 SAE figure are different quantities. The report's per-family framing is correct; any cross-family comparison of raw numbers is not.</li>
+<li><strong>One backbone for the SAE work.</strong> Everything in §4–§8 rests on Qwen-2.5-0.5B. Layer-11 peaking is well replicated generally, but these specific magnitudes are one-model results, and a 0.5B model is small enough that its middle layers may not be doing what a 70B model's middle layers do.</li>
+<li><strong>\(\alpha=100\) is fixed, not tuned.</strong> Uniform across all cells, which is the right choice for comparing configurations but leaves per-cell performance on the table.</li>
+<li><strong>No noise ceiling is estimated.</strong> Without a repeat-presentation estimate of each subject's self-correlation, \(R = 0.079\) cannot be converted into "x% of the explainable variance." It is an absolute number whose headroom is unknown.</li>
+<li><strong>Controlled backbones are tiny.</strong> The TinyCausalTransformer at 376K–750K parameters, trained on one short novel, is near the floor of what can learn anything. The activation and PE findings are about what survives at that scale — informative because it isolates the component, but not a claim about production-scale models.</li>
+</ul>
+</section>
+
+
+<section>
+<h2 id="repro"><span class="num">12</span>Repository and reproduction</h2>
+
+<pre class="tree"><code>Team-16/
+├── sae-variants.ipynb           27 cells — the SAE family end to end:
+│                                extraction, 5 variants, 100 SAEs, ridge,
+│                                feature atlas, stability, zero-shot transfer
+├── normalization-layer.ipynb    12 cells — the 5-norm controlled baseline
+├── mi-new.ipynb                 17 cells — attention variants (MHA/MQA/GQA/MHLA)
+├── activation.ipynb             15 cells — ReLU/GELU/GEGLU/SwiGLU/SoLU
+├── posenc.ipynb                 19 cells — Sinusoidal/Learned/RoPE/ALiBi/XPOS
+├── csai_project_report.pdf      44 pp. — all five families, three deliverables each
+├── csai-presentation.pdf        46 slides
+└── csai_project.pdf             5 pp. summary</code></pre>
+
+<pre><code>pip install torch transformers peft bitsandbytes accelerate \
+            scikit-learn nilearn pandas matplotlib seaborn</code></pre>
+
+<p>Requires <code>ds003643</code> in <code>./ds003643/</code> with preprocessed fMRI <code>.npy</code> files indexed by <code>fmri_feature_index.csv</code>. Trained SAE weights, cached activations (~193 MB per cache, ~3.5 GB total) and results are hosted separately in the Drive folder linked from the README — the notebooks rehydrate from that cache rather than recomputing, and raise a clear <code>FileNotFoundError</code> naming the expected path if it is absent.</p>
+
+<h3>Notes on running it in practice</h3>
+
+<p>The notebooks are written for Kaggle and the environment handling is more defensive than typical notebook code, for reasons that are worth knowing if you adapt them:</p>
+
+<ul>
+<li>They search <code>/kaggle/input</code> <em>recursively</em> for the <code>preprocessed</code> and <code>annotation</code> folders rather than hard-coding a path, because Kaggle dataset mounts nest differently depending on how the dataset was uploaded.</li>
+<li>When the source root is a read-only <code>/kaggle/input</code> mount, output is redirected to <code>/kaggle/working</code>. Writing to the input mount fails, and the failure appears late.</li>
+<li>Cached feature paths are rewritten on load — <code>str(p).replace('\\', '/').split('/')[-1]</code> — because the index CSV was generated on Windows and carries backslash paths that break on Linux.</li>
+<li>There is a monkey-patch disabling a Hugging Face <code>@strict</code> dataclass validator that broke PEFT imports at the version pinned here. It is ugly, it is documented in the cell, and it is the pragmatic answer to a transitive dependency conflict in a hosted environment where you cannot freely downgrade.</li>
+</ul>
+
+<p>None of this is elegant. All of it is the difference between a pipeline that runs on the machine it has and one that only runs on the machine it was written on.</p>
+</section>
+
+
+<nav class="pager" aria-label="Other documents in this set">
+<a class="prev" href="01-tgn-mechanistic-interpretability.html" rel="prev"><span class="dir">&larr; Previous</span><span class="t">Reverse-Engineering a Temporal Graph Network</span></a>
+<a class="next" href="03-algorithmic-collusion-audit-mechanism.html" rel="next"><span class="dir">Next &rarr;</span><span class="t">Algorithmic Collusion Detection via Incentive-Compatible Audits</span></a>
+</nav>
+
+    </main>
+  </div>
+</div>
+
+<footer class="foot">
+  <div class="wrap">
+    <p><b>How this document was produced.</b> Written by reading the project's source code, reports and result files directly. Formulas, file paths, hyperparameters and numbers below were taken from the code as it stands, not from memory. Where the code and the written report disagree, both readings are shown and the disagreement is flagged rather than smoothed over.</p><p>Figures are taken from the committed project report (<code>csai_project_report.pdf</code>, 44 pp.) and the five notebooks. The report and the repository README quote alignment numbers from different aggregation levels (best-configuration vs. per-subject mean); both are given explicitly below so the apparent discrepancy does not mislead.</p>
+  </div>
+</footer>
+
+<button class="themer" id="themer" type="button">Theme</button>
+<script>
+(function(){
+  var b=document.getElementById('themer'), r=document.documentElement;
+  var saved=null; try{saved=localStorage.getItem('doc-theme')}catch(e){}
+  if(saved){r.setAttribute('data-theme',saved)}
+  b.addEventListener('click',function(){
+    var cur=r.getAttribute('data-theme');
+    if(!cur){cur=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}
+    var next=cur==='dark'?'light':'dark';
+    r.setAttribute('data-theme',next);
+    try{localStorage.setItem('doc-theme',next)}catch(e){}
+  });
+})();
+</script>
+
+</body>
+</html>

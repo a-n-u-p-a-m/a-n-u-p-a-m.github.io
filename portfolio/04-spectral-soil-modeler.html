@@ -1,0 +1,970 @@
+<!doctype html>
+<html lang="en" >
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spectral Soil Modeler</title>
+<meta name="description" content="Fifteen model–technique pipelines, a hand-built Cubist hybrid, and an LLM analyst wired over the results — an end-to-end system for reading soil chemistry out of light, instead of out of a laboratory.">
+<style>
+:root{
+  --bg:#fbfaf7; --bg-alt:#f3f1ea; --ink:#16181d; --ink-soft:#4a505c; --ink-faint:#767d8c;
+  --rule:#ddd9cd; --rule-soft:#e9e5db;
+  --accent:#7a4a1e; --accent-soft:#f0e4d4; --accent-ink:#5c3514;
+  --code-bg:#f5f2eb; --code-ink:#2d2a24;
+  --ok:#2f6b47; --warn:#8a5a10; --flag:#8d3030;
+  --max:min(1180px,100%);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131519; --bg-alt:#1a1d23; --ink:#e7e5e0; --ink-soft:#b2b6bf; --ink-faint:#858b97;
+    --rule:#2c3038; --rule-soft:#23262c;
+    --accent:#d9a86a; --accent-soft:#2a221a; --accent-ink:#e8c396;
+    --code-bg:#1c1f25; --code-ink:#dcd9d2;
+    --ok:#6fbf8e; --warn:#d6a44a; --flag:#e07b7b;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131519; --bg-alt:#1a1d23; --ink:#e7e5e0; --ink-soft:#b2b6bf; --ink-faint:#858b97;
+  --rule:#2c3038; --rule-soft:#23262c;
+  --accent:#d9a86a; --accent-soft:#2a221a; --accent-ink:#e8c396;
+  --code-bg:#1c1f25; --code-ink:#dcd9d2;
+  --ok:#6fbf8e; --warn:#d6a44a; --flag:#e07b7b;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:1.5rem}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:16.5px/1.68 "Iowan Old Style","Charter","Georgia","Source Serif 4",serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--max); margin:0 auto; padding:0 16px}
+.shell{display:grid; grid-template-columns:250px minmax(0,1fr); gap:46px; align-items:start}
+@media (max-width:900px){ .shell{grid-template-columns:1fr; gap:0} }
+
+/* ---------- masthead ---------- */
+header.mast{border-bottom:1px solid var(--rule); background:var(--bg-alt)}
+header.mast .wrap{padding-top:34px; padding-bottom:30px}
+.kicker{
+  font:600 11.5px/1 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:14px;
+}
+h1{font-size:clamp(27px,4.3vw,42px); line-height:1.14; margin:0 0 14px; font-weight:600; letter-spacing:-.015em}
+.standfirst{font-size:18px; color:var(--ink-soft); margin:0; max-width:62ch}
+.meta{
+  display:flex; flex-wrap:wrap; gap:8px 22px; margin-top:22px;
+  font:13px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink-faint);
+}
+.meta b{color:var(--ink-soft); font-weight:600}
+.meta a{color:var(--accent); text-decoration:none; border-bottom:1px solid var(--accent-soft)}
+.meta a:hover{border-bottom-color:var(--accent)}
+
+/* ---------- nav ---------- */
+nav.toc{
+  position:sticky; top:20px; padding:30px 0 40px;
+  font:13.5px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+nav.toc .lbl{font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:12px; font-weight:600}
+nav.toc ol{list-style:none; margin:0; padding:0; counter-reset:toc}
+nav.toc li{counter-increment:toc; margin:0 0 2px}
+nav.toc a{
+  display:block; padding:5px 10px 5px 30px; color:var(--ink-soft); text-decoration:none;
+  border-left:2px solid transparent; border-radius:0 4px 4px 0; position:relative;
+}
+nav.toc a::before{
+  content:counter(toc); position:absolute; left:8px; color:var(--ink-faint);
+  font-variant-numeric:tabular-nums; font-size:11.5px; top:6px;
+}
+nav.toc a:hover{background:var(--bg-alt); color:var(--ink)}
+@media (max-width:900px){
+  nav.toc{position:static; padding:24px 0 8px; border-bottom:1px solid var(--rule-soft)}
+  nav.toc ol{columns:2; column-gap:20px}
+}
+
+/* ---------- body ---------- */
+main{padding:34px 0 90px; min-width:0}
+section{margin:0 0 56px; scroll-margin-top:20px}
+h2{
+  font-size:clamp(21px,2.8vw,27px); font-weight:600; letter-spacing:-.01em;
+  margin:0 0 6px; padding-bottom:10px; border-bottom:1px solid var(--rule);
+}
+h2 .num{color:var(--accent); font-variant-numeric:tabular-nums; margin-right:12px; font-size:.78em; font-weight:600}
+h3{font-size:18.5px; font-weight:600; margin:34px 0 8px; color:var(--ink)}
+h4{font-size:15.5px; font-weight:600; margin:24px 0 6px; color:var(--ink-soft);
+   font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.005em}
+p{margin:0 0 15px; max-width:74ch}
+ul,ol{margin:0 0 15px; padding-left:24px; max-width:74ch}
+li{margin:0 0 7px}
+li > ul, li > ol{margin-top:7px}
+strong{font-weight:600}
+em{font-style:italic}
+a{color:var(--accent)}
+hr{border:0; border-top:1px solid var(--rule-soft); margin:34px 0}
+.lede{font-size:17.5px; color:var(--ink-soft); max-width:70ch}
+
+/* ---------- code ---------- */
+code{
+  font:0.875em/1.5 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  background:var(--code-bg); color:var(--code-ink); padding:.13em .38em; border-radius:3px;
+  border:1px solid var(--rule-soft); word-break:break-word;
+}
+pre{
+  background:var(--code-bg); border:1px solid var(--rule-soft); border-radius:7px;
+  padding:15px 17px; overflow-x:auto; margin:0 0 18px;
+  font:13px/1.62 ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  color:var(--code-ink);
+}
+pre code{background:none; border:0; padding:0; font-size:inherit; word-break:normal}
+pre.tree{font-size:12.3px; line-height:1.55}
+.filename{
+  font:600 11.5px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:var(--ink-faint); margin:0 0 6px; letter-spacing:.02em;
+}
+.filename::before{content:"▸ "; color:var(--accent)}
+
+/* ---------- callouts ---------- */
+.note{
+  border-left:3px solid var(--accent); background:var(--accent-soft);
+  padding:14px 18px; margin:0 0 20px; border-radius:0 6px 6px 0; max-width:76ch;
+}
+.note p:last-child{margin-bottom:0}
+.note .tag{
+  display:block; font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent-ink); margin-bottom:8px;
+}
+.note.flag{border-left-color:var(--flag)} .note.flag .tag{color:var(--flag)}
+.note.ok{border-left-color:var(--ok)} .note.ok .tag{color:var(--ok)}
+.note.warn{border-left-color:var(--warn)} .note.warn .tag{color:var(--warn)}
+.note.plain{background:var(--bg-alt); border-left-color:var(--rule)}
+.note.plain .tag{color:var(--ink-faint)}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto; margin:0 0 20px; -webkit-overflow-scrolling:touch}
+table{
+  border-collapse:collapse; width:100%; min-width:430px;
+  font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+caption{
+  caption-side:top; text-align:left; font-size:12.5px; color:var(--ink-faint);
+  padding:0 0 8px; font-family:ui-sans-serif,system-ui,sans-serif;
+}
+th,td{padding:8px 13px; text-align:left; border-bottom:1px solid var(--rule-soft); vertical-align:top}
+th{
+  font-weight:600; font-size:12px; letter-spacing:.055em; text-transform:uppercase;
+  color:var(--ink-faint); border-bottom:1px solid var(--rule); white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:1px solid var(--rule)}
+td.num,th.num{text-align:right; font-variant-numeric:tabular-nums}
+tbody tr:hover{background:var(--bg-alt)}
+td code{font-size:.84em}
+
+/* ---------- misc ---------- */
+.deck{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); margin:0 0 22px}
+.card{border:1px solid var(--rule-soft); border-radius:8px; padding:14px 16px; background:var(--bg-alt)}
+.card .k{
+  font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-faint); margin-bottom:7px;
+}
+.card .v{font-size:21px; font-weight:600; letter-spacing:-.01em; font-variant-numeric:tabular-nums}
+.card .d{font-size:13px; color:var(--ink-soft); margin-top:5px; line-height:1.45;
+         font-family:ui-sans-serif,system-ui,sans-serif}
+figure{margin:0 0 22px}
+figure svg{display:block; width:100%; height:auto; max-width:100%}
+figcaption{font-size:13px; color:var(--ink-faint); margin-top:9px; max-width:70ch;
+           font-family:ui-sans-serif,system-ui,sans-serif; line-height:1.5}
+.eq{
+  background:var(--bg-alt); border:1px solid var(--rule-soft); border-radius:7px;
+  padding:4px 18px; margin:0 0 18px; overflow-x:auto;
+}
+.pill{
+  display:inline-block; font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.07em;
+  text-transform:uppercase; padding:4px 9px; border-radius:20px;
+  background:var(--accent-soft); color:var(--accent-ink); margin:0 6px 6px 0;
+}
+.srconly{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+footer.foot{
+  border-top:1px solid var(--rule); background:var(--bg-alt); padding:24px 0 40px;
+  font:13.5px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink-faint);
+}
+footer.foot .wrap{max-width:var(--max)}
+footer.foot p{max-width:76ch; margin:0 0 9px}
+.themer{
+  position:fixed; right:14px; bottom:14px; z-index:50;
+  border:1px solid var(--rule); background:var(--bg-alt); color:var(--ink-soft);
+  border-radius:20px; padding:7px 14px; cursor:pointer;
+  font:600 12px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.04em;
+}
+.themer:hover{color:var(--ink); border-color:var(--accent)}
+@media print{ .themer,nav.toc{display:none} .shell{grid-template-columns:1fr} body{background:#fff;color:#000} }
+mjx-container{overflow-x:auto; overflow-y:hidden; max-width:100%}
+mjx-container[display="true"]{margin:.7em 0 !important}
+
+/* ---------- set navigation ---------- */
+.setbar{border-bottom:1px solid var(--rule-soft); background:var(--bg)}
+.setbar .wrap{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding-top:11px; padding-bottom:11px;
+  font:13px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.setbar a{color:var(--ink-soft); text-decoration:none}
+.setbar a:hover{color:var(--accent)}
+.setbar .home{font-weight:600; color:var(--ink-soft); white-space:nowrap}
+.setbar .home span{color:var(--accent)}
+.setbar .pos{color:var(--ink-faint); font-variant-numeric:tabular-nums; white-space:nowrap}
+.setbar .jump{display:flex; gap:14px; align-items:center; min-width:0}
+.setbar .jump a{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+@media (max-width:700px){ .setbar .jump .lbl2{display:none} }
+
+nav.toc .sibs{margin-top:26px; padding-top:18px; border-top:1px solid var(--rule-soft)}
+nav.toc .sibs ul{list-style:none; margin:0; padding:0}
+nav.toc .sibs li{margin:0 0 1px; counter-increment:none}
+nav.toc .sibs a{
+  display:block; padding:5px 10px 5px 30px; color:var(--ink-faint); text-decoration:none;
+  border-left:2px solid transparent; border-radius:0 4px 4px 0; position:relative; font-size:13px;
+}
+nav.toc .sibs a .n{position:absolute; left:8px; font-variant-numeric:tabular-nums; font-size:11.5px}
+nav.toc .sibs a:hover{background:var(--bg-alt); color:var(--ink)}
+nav.toc .sibs a[aria-current="page"]{
+  color:var(--ink); font-weight:600; border-left-color:var(--accent); background:var(--accent-soft);
+}
+
+.pager{
+  display:grid; gap:14px; grid-template-columns:1fr 1fr; margin:10px 0 0;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (max-width:620px){ .pager{grid-template-columns:1fr} }
+.pager a{
+  display:block; border:1px solid var(--rule-soft); border-radius:8px; padding:14px 16px;
+  text-decoration:none; background:var(--bg-alt); color:var(--ink);
+}
+.pager a:hover{border-color:var(--accent)}
+.pager .dir{
+  display:block; font:600 10.5px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:7px;
+}
+.pager .t{display:block; font-size:14.5px; font-weight:600; line-height:1.35}
+.pager .next{text-align:right}
+.pager .spacer{border:1px dashed var(--rule-soft); border-radius:8px; opacity:.35}
+
+/* ---------- index page ---------- */
+.indexwrap{max-width:900px; margin:0 auto; padding:0 16px}
+main.index{padding:36px 0 80px}
+.projlist{display:flex; flex-direction:column; gap:16px; margin:0 0 44px}
+.proj{
+  display:block; border:1px solid var(--rule-soft); border-radius:10px; padding:20px 22px;
+  text-decoration:none; color:var(--ink); background:var(--bg-alt); position:relative;
+}
+.proj:hover{border-color:var(--accent)}
+.proj .pnum{
+  font:600 11px/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.14em; color:var(--accent);
+  display:block; margin-bottom:9px;
+}
+.proj h3{margin:0 0 8px; font-size:20px; font-weight:600; letter-spacing:-.01em; line-height:1.25}
+.proj p{margin:0 0 12px; color:var(--ink-soft); font-size:15.5px; max-width:68ch}
+.proj .tags{display:flex; flex-wrap:wrap; gap:6px 8px; font-family:ui-sans-serif,system-ui,sans-serif}
+.proj .tag2{
+  font-size:11.5px; letter-spacing:.03em; color:var(--ink-faint);
+  border:1px solid var(--rule-soft); border-radius:20px; padding:3px 10px; background:var(--bg);
+}
+.proj .when{
+  position:absolute; top:20px; right:22px; font:12px/1 ui-sans-serif,system-ui,sans-serif;
+  color:var(--ink-faint); font-variant-numeric:tabular-nums;
+}
+@media (max-width:620px){ .proj .when{position:static; display:block; margin-bottom:9px} }
+</style>
+
+<script>
+window.MathJax={
+  tex:{inlineMath:[['\\(','\\)'],['$','$']],displayMath:[['\\[','\\]'],['$$','$$']],processEscapes:true},
+  options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']},
+  chtml:{scale:0.98}
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
+
+</head>
+<body>
+<div class="setbar">
+  <div class="wrap">
+    <a class="home" href="index.html">&#8962; <span>Anupam Dwivedi — Project Portfolio</span></a>
+    <div class="jump"><a href="03-algorithmic-collusion-audit-mechanism.html" rel="prev">&larr; <span class="lbl2">Algorithmic Collusion Audits</span></a><a href="05-detection-of-computer-generated-text.html" rel="next"><span class="lbl2">Detecting Machine Text</span> &rarr;</a></div>
+    <span class="pos">4 / 6</span>
+  </div>
+</div>
+
+<header class="mast">
+  <div class="wrap">
+    <div class="kicker">Project 04 &nbsp;·&nbsp; Applied ML &amp; Spectroscopy</div>
+    <h1>Spectral Soil Modeler</h1>
+    <p class="standfirst">Fifteen model–technique pipelines, a hand-built Cubist hybrid, and an LLM analyst wired over the results — an end-to-end system for reading soil chemistry out of light, instead of out of a laboratory.</p>
+    <div class="meta">
+        <span><b>Period</b> Oct – Dec 2025</span>
+        <span><b>Repository</b> <a href="https://github.com/a-n-u-p-a-m/Team27_Spectral_Soil_Modeler">Team27_Spectral_Soil_Modeler</a></span>
+        <span><b>Stack</b> scikit-learn · Streamlit · Plotly · Gemini / OpenAI · joblib</span>
+        <span><b>Scale</b> ~16,300 lines · 5 datasets × 100 spectral bands</span>
+        <span><b>Type</b> Group project (5)</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="shell">
+    <nav class="toc" aria-label="Contents">
+      <div class="lbl">Contents</div>
+      <ol>
+        <li><a href="#problem">Reading soil chemistry out of light</a></li>
+        <li><a href="#preprocessing">Three ways to look at a spectrum</a></li>
+        <li><a href="#models">Five algorithms, and why each one is here</a></li>
+        <li><a href="#training">The dual-paradigm training architecture</a></li>
+        <li><a href="#llm">The LLM analytics layer</a></li>
+        <li><a href="#application">The application</a></li>
+        <li><a href="#significance">Why this matters</a></li>
+        <li><a href="#limits">Limits</a></li>
+        <li><a href="#repro">Repository and reproduction</a></li>
+      </ol>
+      <div class="sibs">
+        <div class="lbl">The other projects</div>
+        <ul>
+          <li><a href="01-tgn-mechanistic-interpretability.html"><span class="n">01</span>Reverse-Engineering a TGN</a></li>
+          <li><a href="02-cross-language-brain-alignment.html"><span class="n">02</span>Cross-Language Brain Alignment</a></li>
+          <li><a href="03-algorithmic-collusion-audit-mechanism.html"><span class="n">03</span>Algorithmic Collusion Audits</a></li>
+          <li><a href="04-spectral-soil-modeler.html" aria-current="page"><span class="n">04</span>Spectral Soil Modeler</a></li>
+          <li><a href="05-detection-of-computer-generated-text.html"><span class="n">05</span>Detecting Machine Text</a></li>
+          <li><a href="06-hate-speech-and-counter-speech.html"><span class="n">06</span>Hate &amp; Counter Speech</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main>
+<section>
+<h2 id="problem"><span class="num">01</span>Reading soil chemistry out of light</h2>
+
+<p class="lede">Determining a soil's organic carbon content the conventional way means taking a physical sample, sending it to a laboratory, and waiting — at a cost per sample that makes dense sampling impossible. Shine light at the same soil and measure what comes back, and the answer is encoded in the reflectance spectrum, if you can decode it.</p>
+
+<h3>The physics that makes this possible</h3>
+
+<p>Chemical bonds absorb light at frequencies set by their vibrational modes. A bond behaves approximately like a quantum harmonic oscillator with energy levels \(E_n = h\nu(n + \tfrac12)\); the <em>fundamental</em> transitions \(n{=}0 \to 1\) for the bonds that matter in soil (O–H, C–H, N–H) fall in the mid-infrared, around 3000–10000 nm.</p>
+
+<p>What a VNIR–SWIR spectrometer sees at 400–2500 nm is therefore not the fundamentals but their <strong>overtones</strong> (\(n{=}0\to 2\), \(0\to 3\)) and <strong>combination bands</strong> (two modes excited at once). Real bonds are anharmonic, which is what makes these transitions weakly allowed at all — in a perfectly harmonic oscillator they would be forbidden. The practically important features:</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Region</th><th>Feature</th><th>Attributable to</th></tr></thead>
+<tbody>
+<tr><td>~1400 nm, ~1900 nm</td><td>O–H combination bands</td><td>water content and hydroxyl-bearing clay minerals</td></tr>
+<tr><td>~2200 nm</td><td>Al–OH lattice bend + stretch</td><td>kaolinite, smectite and other clays — the classic clay feature</td></tr>
+<tr><td>~2300–2350 nm</td><td>C–H and C–O combinations</td><td>organic matter</td></tr>
+<tr><td>400–700 nm</td><td>broad electronic transitions (crystal field)</td><td>iron oxides; also the main driver of visible soil colour</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>So the spectrum carries real chemical information. The catch is that it carries it <em>diffusely</em>: overtone bands are an order of magnitude weaker and far broader than the fundamentals, they overlap heavily, they sit on a scattering baseline that depends on particle size and surface roughness, and water dominates everything. No single wavelength reads out organic carbon. The signal is distributed across the whole curve — which is exactly the regime where chemometrics and machine learning earn their place.</p>
+
+<h3>The data</h3>
+
+<div class="deck">
+<div class="card"><div class="k">Datasets</div><div class="v">5</div><div class="d">T1–T5, one target property each</div></div>
+<div class="card"><div class="k">Samples</div><div class="v">500–600</div><div class="d">per dataset</div></div>
+<div class="card"><div class="k">Spectral bands</div><div class="v">100</div><div class="d">410–2490 nm, ~21 nm spacing</div></div>
+<div class="card"><div class="k">Target range</div><div class="v">0.33 – 44.2</div><div class="d">median 6.13, mean 7.45, σ 5.02 (T1)</div></div>
+</div>
+
+<p>The target distribution is strongly right-skewed — a median of 6.13 against a maximum of 44.2, with the mean well above the median — which is characteristic of soil property measurements and has direct consequences for which models work and which error metric is honest. A handful of high-value samples will dominate squared error, so a model can look good on RMSE while being useless across the bulk of the range.</p>
+
+<div class="note plain">
+<span class="tag">An unexamined option: transforming the target</span>
+<p>A log or Box–Cox transform of a right-skewed target is standard practice in soil spectroscopy — it symmetrises the residual distribution, stabilises variance, and stops the few large samples from dominating the squared loss. The pipeline does not do this; it offers three <em>feature</em> scalers and no target transform.</p>
+<p>The argument against is real: predictions must be back-transformed to be interpretable, and the back-transform of a mean in log space is not the mean in original space (Jensen's inequality), so a bias correction is needed to report unbiased predictions. But the argument for is stronger with a 130-fold range, and its absence is the most visible gap in an otherwise thorough preprocessing stage.</p>
+</div>
+
+<h3>The statistical problem</h3>
+
+<p>With \(n \approx 500\) samples and \(p = 100\) wavelengths, the ratio is not catastrophic — but the <em>effective</em> dimensionality is far worse than the nominal one. Adjacent spectral bands are correlated at \(r > 0.99\), because an absorption feature spanning 100 nm covers five consecutive bands at 21 nm spacing.</p>
+
+<p>The consequence is severe multicollinearity. The OLS solution \(\hat\beta = (X^\top X)^{-1}X^\top y\) requires inverting a near-singular matrix: its condition number is enormous, so tiny perturbations in \(y\) produce huge swings in \(\hat\beta\). The coefficients become large, opposite in sign on adjacent bands, and meaningless. The standard toolkit splits into two responses:</p>
+
+<ul>
+<li><strong>Project into a lower-dimensional space</strong> that captures covariance with the target — PLSR.</li>
+<li><strong>Regularise</strong> so that collinear predictors share weight instead of fighting over it — ridge, kernel ridge, SVR.</li>
+</ul>
+
+<p>This project implements both families, plus a tree ensemble and a hand-built hybrid, and then does something more unusual: it treats the <em>preprocessing transform</em> as a first-class experimental factor rather than a fixed preliminary.</p>
+</section>
+
+
+<section>
+<h2 id="preprocessing"><span class="num">02</span>Three ways to look at a spectrum</h2>
+
+<p>Each transform asks the model a different question about the same data. Crossing three transforms with five algorithms gives the 15 model–technique combinations the project is built around.</p>
+
+<h3>Reflectance — the baseline</h3>
+
+<div class="eq">\[ R = I_{\text{reflected}} \,/\, I_{\text{incident}} \]</div>
+
+<p>Raw measured reflectance, passed through unchanged. Implemented as <code>X.copy()</code> — and the <code>.copy()</code> is not redundant: returning the input array itself would let a downstream in-place operation silently mutate the caller's data, which in a pipeline that applies three transforms to the same source matrix would corrupt the other two.</p>
+
+<h3>Absorbance — linearising the chemistry</h3>
+
+<div class="eq">\[ A = \log_{10}(1/R) = -\log_{10}(R) \]</div>
+
+<p>This is the one transform with a physical justification rather than a heuristic one. The Beer–Lambert law states that absorbance is <em>linearly</em> proportional to the concentration of an absorbing species:</p>
+
+<div class="eq">\[ A = \varepsilon \, \ell \, c \]</div>
+
+<p>with \(\varepsilon\) the molar absorptivity, \(\ell\) the path length and \(c\) the concentration. Reflectance relates to concentration through an exponential; absorbance relates to it linearly.</p>
+
+<p>Why that matters here specifically: PLSR, SVR with a linear kernel, and KRR are all <em>linear in the feature space they operate on</em>. If the physical relationship is \(R \propto e^{-kc}\) and you regress on \(R\), a linear model must approximate an exponential — spending components or kernel capacity on a curve the log transform removes for free. <strong>The transform moves the target relationship into the space those models can natively represent.</strong> It is a change of coordinates chosen so the model's inductive bias matches the physics.</p>
+
+<p>The implementation clips before taking the log, which is not optional:</p>
+
+<pre><code>X_safe = np.clip(X, 1e-8, 1.0)
+A = -np.log10(X_safe)</code></pre>
+
+<p>A reflectance of exactly zero — from a sensor dropout or a very dark sample — would otherwise produce \(-\infty\), which propagates to NaN through any subsequent mean or standardisation and poisons the entire column. Clipping at \(10^{-8}\) caps absorbance at 8, far above any physically meaningful value, so it cannot distort real measurements. The upper clip at 1.0 handles the reverse pathology: calibration artefacts occasionally produce \(R > 1\), which would give <em>negative</em> absorbance.</p>
+
+<div class="note plain">
+<span class="tag">A caveat the transform inherits</span>
+<p>Beer–Lambert is derived for <em>transmission</em> through a homogeneous medium of known path length. Diffuse reflectance from a granular surface has no well-defined \(\ell\) — photons scatter through an unknown number of grains — and the rigorous treatment is the <strong>Kubelka–Munk</strong> function \(f(R) = (1-R)^2/2R\), which models absorption and scattering coefficients separately.</p>
+<p>In practice \(\log(1/R)\) is the field standard for soil spectroscopy and works at least as well empirically, partly because K–M assumes an infinitely thick, isotropically scattering layer that soil only approximates. But it is an approximation with a known name and a known better alternative, and it is worth labelling as such.</p>
+</div>
+
+<h3>Continuum removal — isolating the absorption features</h3>
+
+<div class="eq">\[ CR = R \,/\, \mathrm{continuum}(R) \]</div>
+
+<p>A spectrum is an overall baseline shape — the "continuum," driven by particle size, surface roughness and overall brightness — with narrow absorption features superimposed. Continuum removal divides out the baseline, normalising every spectrum so the continuum sits at 1.0 and only absorption dips remain. Two soils with identical chemistry but different grain size have very different raw spectra and nearly identical continuum-removed ones.</p>
+
+<p>This addresses a specific physical nuisance: <strong>multiplicative scatter</strong>. Particle size changes the path length photons travel before escaping, which scales reflectance roughly multiplicatively across all wavelengths. A ratio removes a multiplicative factor exactly, where a subtraction would not.</p>
+
+<p>The implementation estimates the continuum by finding local turning points, interpolating linearly between them, and enforcing <code>continuum = np.maximum(continuum, spectrum)</code> so the ratio never exceeds 1:</p>
+
+<pre><code>for j in range(1, n_points - 1):
+    if spectrum[j] > spectrum[j-1] and spectrum[j] > spectrum[j+1]:
+        hull_indices = np.append(hull_indices, j)      # local maximum
+    elif spectrum[j] < spectrum[j-1] and spectrum[j] < spectrum[j+1]:
+        hull_indices = np.append(hull_indices, j)      # local minimum
+...
+continuum = np.maximum(f_hull(np.arange(n_points)), spectrum)
+X_cr[i, :] = spectrum / continuum</code></pre>
+
+<div class="note warn">
+<span class="tag">An implementation note, stated plainly</span>
+<p>This is not a true convex hull. The code collects <em>both</em> local maxima and local minima as hull points, then interpolates through all of them. A genuine upper convex hull uses only points on the upper boundary — formally, the vertices of the convex hull of \(\{(\lambda_i, R_i)\}\) lying above the spectrum — and would skip over local minima entirely.</p>
+<p>Including the minima means the "continuum" tracks the spectrum more closely than it should, and shallow absorption features are partly removed along with the baseline. The deeper the feature, the more of it survives; shallow features are attenuated most.</p>
+<p>The <code>np.maximum</code> guard keeps the output in \([0,1]\) and the transform remains well-behaved and useful — the three transforms still give genuinely different views, which is what the experiment needs. But it is a smoothed envelope rather than a convex hull, and a reader implementing this from the paper should know the difference. <code>scipy.spatial.ConvexHull</code> on the \((\lambda, R)\) points, restricted to the upper boundary, is the textbook version and is about five lines.</p>
+</div>
+
+<h3>Normalization</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Scaler</th><th>Formula</th><th>When it is right</th></tr></thead>
+<tbody>
+<tr><td>StandardScaler</td><td>\((x - \bar x)/\sigma\)</td><td>default; <em>required</em> for SVR and KRR, whose RBF kernels compute \(\exp(-\gamma\lVert x - x'\rVert^2)\) — an unscaled feature with a larger range dominates the distance and effectively silences the others</td></tr>
+<tr><td>MinMaxScaler</td><td>\((x - x_{\min})/(x_{\max} - x_{\min})\)</td><td>bounded output; fragile because a single outlier sets the range and compresses everything else into a narrow band</td></tr>
+<tr><td>RobustScaler</td><td>\((x - \mathrm{median})/\mathrm{IQR}\)</td><td>the right default for this skewed data — quantile-based, so extreme samples do not drag the centre or inflate the scale</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Tree-based models (GBRT, and Cubist's ensemble stage) are invariant to any monotone per-feature transform, since splits depend only on ordering. Scaling them is harmless but does nothing — which is worth knowing when interpreting the grid: a scaler change that moves GBRT's score is moving it through the \(k\)-NN stage or through noise, not through the trees.</p>
+
+<h3>Optional feature engineering</h3>
+
+<p>Six further techniques are available beyond the three core transforms, each with a specific spectroscopic rationale:</p>
+
+<ul>
+<li><strong>Savitzky–Golay derivatives</strong> (1st and 2nd order). A first derivative removes additive baseline offsets (a constant vanishes under differentiation); a second derivative removes linear baseline drift and turns overlapping shoulders into resolvable minima. The SG filter fits a local polynomial over a window and differentiates <em>that</em>, rather than differencing adjacent points — essential because naive differencing amplifies high-frequency noise by roughly \(\sqrt{2}\) per order, and a second derivative of a noisy spectrum is pure noise.</li>
+<li><strong>Spectral indices</strong> — band ratios, normalised differences, slope and curvature. The hand-built features of the remote-sensing tradition; a ratio cancels multiplicative illumination effects the way continuum removal does, but locally.</li>
+<li><strong>Statistical window features</strong> — rolling mean, std, variance, skewness, kurtosis over spectral neighbourhoods.</li>
+<li><strong>Polynomial features</strong> (degree 2) — originals, squares and all pairwise interactions. On 100 bands this produces 5,150 features, which is why it is optional and why it needs heavy regularisation downstream.</li>
+<li><strong>PCA</strong> — unsupervised compression, and a useful point of comparison against PLSR's supervised compression.</li>
+<li><strong>Wavelet features</strong> — Daubechies-4 decomposition. Unlike Fourier, wavelets are localised in <em>both</em> frequency and position, so they separate a broad baseline from a narrow absorption feature by scale while retaining where each sits — which matches the structure of a spectrum unusually well.</li>
+</ul>
+</section>
+
+
+<section>
+<h2 id="models"><span class="num">03</span>Five algorithms, and why each one is here</h2>
+
+<h3>PLSR — the chemometrics standard</h3>
+
+<p>Partial Least Squares Regression decomposes predictors and target simultaneously:</p>
+
+<div class="eq">
+\[
+X = TP^{\top} + E_X, \qquad y = UQ^{\top} + E_y
+\]
+</div>
+
+<p>with \(T, U\) score matrices and \(P, Q\) loadings. The distinction from PCA is the whole point. PCA finds directions of maximum variance in \(X\) with no reference to \(y\) — a direction explaining 90% of spectral variance might be pure moisture, irrelevant to organic carbon. PLS instead finds directions of maximum <em>covariance</em> between \(X\) and \(y\):</p>
+
+<div class="eq">
+\[
+w_1 = \arg\max_{\lVert w\rVert = 1} \mathrm{Cov}(Xw,\, y)
+\]
+</div>
+
+<p>The classical algorithm (NIPALS) proceeds iteratively: compute the weight vector \(w = X^\top y / \lVert X^\top y\rVert\), form scores \(t = Xw\), regress both \(X\) and \(y\) on \(t\) to get loadings, then <em>deflate</em> — subtract the rank-one fit from both — and repeat on the residual. Deflation is what makes successive components orthogonal, and it is why components must be extracted in order rather than independently.</p>
+
+<p>This is why PLSR, not PCR, is the default in chemometrics, and why it handles \(p \gg n\) with near-perfect collinearity gracefully. The single hyperparameter is the number of components (3–20), and it directly controls the bias–variance trade-off: too few underfits, too many starts fitting noise directions in the deflated residual.</p>
+
+<h3>GBRT — the non-linear workhorse</h3>
+
+<p>Gradient boosting builds an additive model by fitting each new tree to the negative gradient of the loss at the current prediction:</p>
+
+<div class="eq">
+\[
+h_m = \arg\min_{h}\sum_{i=1}^{N} L\big(y_i,\; F_{m-1}(x_i) + h(x_i)\big),
+\qquad
+F_M(x) = F_0(x) + \sum_{m=1}^{M}\nu\, h_m(x)
+\]
+</div>
+
+<p>For squared loss the negative gradient <em>is</em> the residual, so the procedure reduces to the intuitive "fit the next tree to what the previous ones got wrong." The learning rate \(\nu\) shrinks each tree's contribution, and the \(\nu\)–\(M\) trade-off is the central regularisation knob: small \(\nu\) with large \(M\) generalises better than the reverse, at proportionally more compute.</p>
+
+<p>Its advantages here are non-linearity, robustness to outliers (via the tree structure rather than the loss), and free feature importances — which, mapped back onto wavelengths, are directly interpretable as "which absorption regions is the model actually using." That last property is why GBRT is worth including even where PLSR wins on accuracy.</p>
+
+<h3>SVR — ε-insensitive regression</h3>
+
+<div class="eq">
+\[
+\min_{w,b,\xi,\xi^{*}} \;\tfrac{1}{2}\lVert w\rVert^2 + C\sum_{i=1}^{N}(\xi_i + \xi_i^{*})
+\]
+</div>
+<div class="eq">
+\[
+\text{s.t.}\quad y_i - w^{\top}\phi(x_i) - b \le \epsilon + \xi_i,
+\qquad w^{\top}\phi(x_i) + b - y_i \le \epsilon + \xi_i^{*}
+\]
+</div>
+
+<p>Two ideas are doing work. The <strong>\(\epsilon\)-tube</strong>: errors smaller than \(\epsilon\) cost nothing at all. For spectral data with real measurement noise this means the model is not chasing instrument jitter, and the solution is <em>sparse in the training samples</em> — only points outside the tube become support vectors, so prediction cost scales with the number of hard examples rather than the dataset.</p>
+
+<p>The <strong>kernel trick</strong>: the dual formulation depends on the data only through inner products \(\phi(x_i)^\top\phi(x_j)\), which can be computed by a kernel function \(K(x_i,x_j)\) without ever constructing \(\phi\). The RBF kernel \(\exp(-\gamma\lVert x-x'\rVert^2)\) corresponds to an infinite-dimensional feature space — a model with infinitely many features, fitted in \(O(n^2)\) memory. \(\gamma\) sets the kernel width, and <code>'scale'</code> (sklearn's default, \(1/(p\cdot\mathrm{Var}(X))\)) adapts it to the data rather than fixing it.</p>
+
+<h3>KRR — ridge in a kernel space</h3>
+
+<div class="eq">
+\[
+\min_{w}\;\lVert y - Kw\rVert^2 + \alpha\lVert w\rVert^2
+\qquad\Longrightarrow\qquad
+w = (K + \alpha I)^{-1}y
+\]
+</div>
+
+<p>The complement to SVR: same kernel machinery, squared loss instead of \(\epsilon\)-insensitive. That makes it non-sparse — every training point gets a non-zero coefficient — but gives it a <strong>closed-form solution</strong>: one matrix inversion, no iterative optimisation, no convergence tolerance to tune. For \(n \approx 500\) that inversion is trivial, which makes KRR the fastest non-linear model in the set and a useful speed/accuracy reference against SVR.</p>
+
+<p>Including both is a deliberate ablation of the loss function: SVR and KRR differ in <em>exactly one thing</em>, so the gap between them isolates what the \(\epsilon\)-insensitive loss buys on this data.</p>
+
+<h3>Cubist — the hand-built hybrid</h3>
+
+<p>Cubist is a rule-based regression method, widely used in soil spectroscopy, descended from Quinlan's M5. The real algorithm builds a tree, converts each path to an <em>if–then rule</em>, fits a <em>linear model</em> in each rule's leaf, and smooths predictions using nearby training instances. The canonical implementation is an R package with no mature Python equivalent.</p>
+
+<div class="note plain">
+<span class="tag">Design decision: approximate it, don't skip it</span>
+<p>Three options were available. <strong>Drop Cubist</strong> — but it is a field standard, and a soil-spectroscopy comparison without it is incomplete. <strong>Call R from Python</strong> via <code>rpy2</code> — faithful, and it makes the application depend on an R installation, which for a Streamlit app meant for non-specialists is a deployment burden out of proportion to the gain. <strong>Approximate the two-stage structure in scikit-learn</strong> — chosen, and labelled in the source as an approximation.</p>
+<p>The honest framing, which the module docstring gives: this reproduces Cubist's <em>combination of rule-based prediction with instance-based refinement</em>, not its rule induction. Gradient boosting produces an ensemble of trees rather than an ordered, readable rule list with linear leaf models.</p>
+</div>
+
+<p><strong>Stage 1 — rule generation.</strong> A <code>GradientBoostingRegressor</code> whose <code>n_estimators</code> is interpreted as a rule count.</p>
+
+<p><strong>Stage 2 — instance-based smoothing.</strong> A \(k\)-NN index over the training set. At prediction time, the \(k\) nearest training samples are found, their targets averaged with <em>inverse-distance weights</em>, and the result blended with the ensemble prediction:</p>
+
+<pre><code>distances, indices = self.neighbors_model.kneighbors(X, n_neighbors=self.neighbors)
+weights = 1.0 / (distances + 1e-6)
+weights = weights / weights.sum(axis=1, keepdims=True)
+neighbor_avg = np.sum(self.y_train[indices] * weights, axis=1)
+
+alpha = 0.6      # weight between ensemble (0.4) and neighbors (0.6)
+predictions = alpha * neighbor_avg + (1 - alpha) * base_predictions</code></pre>
+
+<div class="note flag">
+<span class="tag">Code and report disagree on the blend direction</span>
+<p>The 45-page final report states the blend as
+\[ \hat y = 0.6\,\hat y_{\text{ensemble}} + 0.4\,\bar y_{\text{neighbors}} \]
+The shipped code computes the <em>opposite</em>: <code>alpha = 0.6</code> multiplies <code>neighbor_avg</code>, so the running model is
+\[ \hat y = 0.6\,\bar y_{\text{neighbors}} + 0.4\,\hat y_{\text{ensemble}} \]
+The source comment on that line (<code># Weight between ensemble (0.4) and neighbors (0.6)</code>) confirms the code's intent, so the report's equation is the one that is wrong.</p>
+<p>This is not cosmetic. The deployed model is <strong>k-NN-dominant with gradient boosting as a correction</strong>, not the reverse. That changes how its behaviour should be understood: it interpolates smoothly between similar training spectra and extrapolates poorly outside their convex hull — characteristic k-NN behaviour, and a meaningful limitation for a model intended for new soils. It also means the model is <em>less</em> interpretable than the "rule-based" framing suggests, since 60% of each prediction comes from a distance-weighted average rather than from any rule.</p>
+<p>The report also quotes a different hyperparameter grid for Cubist than the code contains (<code>k_neighbors</code> as a tuned parameter, 16 combinations) versus the implementation (<code>n_estimators</code> × <code>max_depth</code> × <code>learning_rate</code>, 12 in the small grid). The code is the authority. Notably, <code>neighbors</code> — arguably the most consequential parameter given the 0.6 weighting — is <strong>not tuned at all</strong>; it stays at its constructor default of 5.</p>
+</div>
+
+<p>With those corrections noted, the design rationale is sound. Inverse-distance weighting means a near-identical training spectrum dominates the local estimate while distant ones contribute little, and the \(\varepsilon = 10^{-6}\) guard prevents division by zero on an exact duplicate — a real possibility with repeated measurements of the same sample. For spectral data, where samples from the same soil type genuinely cluster, local averaging is a reasonable prior.</p>
+</section>
+
+
+<section>
+<h2 id="training"><span class="num">04</span>The dual-paradigm training architecture</h2>
+
+<p>The structural idea: run <strong>two complete pipelines in parallel</strong> for every model–technique combination.</p>
+
+<div class="deck">
+<div class="card"><div class="k">Standard</div><div class="v" style="font-size:17px">Fixed hyperparameters</div><div class="d">Sensible defaults, no search. Fast, reproducible, and the honest baseline.</div></div>
+<div class="card"><div class="k">Tuned</div><div class="v" style="font-size:17px">CV-optimised</div><div class="d">GridSearchCV or RandomizedSearchCV with 5-fold CV (or leave-one-out) over the same training data.</div></div>
+</div>
+
+<p>Running both is what makes tuning's contribution <em>measurable</em>. A single tuned number tells you how good the model is; the pair tells you how much of that came from the search — the question that determines whether the search was worth its compute. The reported figure is <strong>5–15% improvement in test \(R^2\) from tuning</strong>, with typical best test \(R^2\) in the 0.48–0.58 range.</p>
+
+<p>This also guards against a subtle failure: if tuning produced <em>no</em> improvement, that is diagnostic. It would mean either the grid is badly centred (the defaults are already near-optimal and the grid does not reach better values) or the CV signal is too noisy to distinguish configurations. Without the paired baseline, neither is visible.</p>
+
+<h3>The search-space reduction</h3>
+
+<div class="tablewrap">
+<table>
+<caption>Grid sizes as implemented in <code>hyperparameter_tuner.py</code></caption>
+<thead><tr><th>Model</th><th class="num">Full grid</th><th class="num">Small grid</th><th class="num">Reduction</th></tr></thead>
+<tbody>
+<tr><td>PLSR</td><td class="num">7</td><td class="num">3</td><td class="num">57.1%</td></tr>
+<tr><td>GBRT</td><td class="num">216</td><td class="num">32</td><td class="num">85.2%</td></tr>
+<tr><td>SVR</td><td class="num">225</td><td class="num">16</td><td class="num">92.9%</td></tr>
+<tr><td>KRR</td><td class="num">75</td><td class="num">18</td><td class="num">76.0%</td></tr>
+<tr><td>Cubist</td><td class="num">80</td><td class="num">12</td><td class="num">85.0%</td></tr>
+<tr><td><strong>Total</strong></td><td class="num"><strong>603</strong></td><td class="num"><strong>81</strong></td><td class="num"><strong>86.6%</strong></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note plain">
+<span class="tag">Where the "96%" figure comes from</span>
+<p>Two different reductions are in play and they should be stated separately.</p>
+<p><strong>Grid-to-grid:</strong> 603 → 81 configurations, an <strong>86.6%</strong> reduction (SVR alone reaches 92.9%).</p>
+<p><strong>Grid-to-randomized-search:</strong> <code>RandomizedSearchCV</code> runs with <code>n_iter = 20</code>. Against the 603-point full grid that is 20/603 fits, a <strong>96.7%</strong> reduction — which is where the headline figure originates and is a defensible way to state it.</p>
+<p>Multiply either by 5 CV folds for actual model fits: the full grid requires 3,015 fits per model–technique combination, the small grid 405, randomized search 100. Across 15 combinations × 2 paradigms, that is the difference between a run that finishes and one that does not.</p>
+<p>A separate, larger reduction is documented for GBRT specifically: an original 2,160-combination grid cut to 48 (97.8%), reported as a 40% cut in GBRT training time at comparable accuracy.</p>
+</div>
+
+<h3>Why randomized search is defensible here</h3>
+
+<p>Not merely cheaper — often better, for a reason specific to how these grids are shaped. Bergstra and Bengio's argument applies directly: hyperparameter importance is highly uneven, and a grid wastes its budget re-testing the unimportant dimensions at every level of the important ones.</p>
+
+<p>Concretely, in the SVR grid \(C\) and \(\gamma\) dominate performance while <code>epsilon</code> matters comparatively little. A grid with 5 values of \(C\) evaluates <em>exactly five</em> distinct \(C\) values no matter how large the total grid gets, because every other dimension just replicates those five. Twenty random draws evaluate twenty distinct \(C\) values. <strong>On the dimension that matters, random search gets 4× the resolution for a fraction of the fits.</strong></p>
+
+<p>What is <em>not</em> implemented, and would be the next step: Bayesian optimisation (Optuna, scikit-optimize). With each fit taking seconds and a budget of 20 trials, a TPE sampler would likely beat random search by modelling which regions are promising. The argument for not doing it is dependency weight and the fact that random search is strictly better than grid at the same budget, which is already the larger win.</p>
+
+<h3>Evaluation</h3>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Metric</th><th>Formula</th><th>What it is for</th></tr></thead>
+<tbody>
+<tr><td>\(R^2\)</td><td>\(1 - \mathrm{SS}_{\text{res}}/\mathrm{SS}_{\text{tot}}\)</td><td>fraction of variance explained; comparable across datasets with different target scales</td></tr>
+<tr><td>RMSE</td><td>\(\sqrt{\tfrac{1}{n}\sum(y_i - \hat y_i)^2}\)</td><td>error in the target's own units; outlier-sensitive by construction</td></tr>
+<tr><td>MAE</td><td>\(\tfrac{1}{n}\sum|y_i - \hat y_i|\)</td><td>typical error; the honest one for a skewed target, since it does not square the tail</td></tr>
+<tr><td><strong>RPD</strong></td><td>\(\sigma_y / \mathrm{RMSE}\)</td><td>the spectroscopy-specific one — see below</td></tr>
+</tbody>
+</table>
+</div>
+
+<p><strong>RPD</strong> (Residual Prediction Deviation) is the metric that connects this work to its field. It compares prediction error against the natural spread of the target, and carries conventional interpretive bands in soil spectroscopy: below 1.4 the model is not useful; 1.4–2.0 is adequate for rough screening; above 2.0 is good quantitative prediction. Including it rather than only ML-standard metrics means the results can be read by a soil scientist without translation.</p>
+
+<p>RPD and \(R^2\) are related — \(\mathrm{RPD} \approx 1/\sqrt{1-R^2}\) for an unbiased model — so a test \(R^2\) of 0.55 corresponds to RPD ≈ 1.49, squarely in the screening band. Reporting both is not redundant: RPD's bands are the field's shared vocabulary, and the two diverge when the model is biased, which is itself diagnostic.</p>
+
+<h3>Leave-one-out cross-validation</h3>
+
+<p>Phase 3 added LOO CV metrics (<code>LOO CV Test R²</code>, <code>LOO CV Test RMSE</code>) as the primary validation signal, with the CV strategy configurable.</p>
+
+<p>The trade-off is well understood. LOO trains \(n\) models, each on \(n-1\) samples, so each training set is nearly the full dataset and the generalisation estimate is <strong>nearly unbiased</strong>. But the \(n\) models are highly correlated with each other — they differ by one sample — so the <em>variance</em> of the LOO estimate can be high. \(k\)-fold with \(k=5\) or 10 is the usual compromise: more bias (each model sees 80–90% of the data), less variance, and \(k\) fits instead of \(n\).</p>
+
+<p>At \(n \approx 500\) with fast models, \(n\) fits is affordable, and the bias reduction is worth having when the comparison between 15 configurations hinges on differences of a few points of \(R^2\). Keeping both strategies configurable is the right call: LOO for final reporting, 5-fold inside the hyperparameter search where it runs hundreds of times.</p>
+
+<h3>Parallelism</h3>
+
+<p>Training is parallelised with <code>ThreadPoolExecutor</code> across the 15 combinations. Threads rather than processes is correct here for a specific reason: scikit-learn's heavy numerical work happens inside NumPy and Cython routines that <strong>release the GIL</strong>, so threads achieve real parallelism without the cost of pickling the dataset into worker processes. A <code>ProcessPoolExecutor</code> would serialise the full feature matrix to every worker — and would also conflict with <code>n_jobs=-1</code> inside each <code>GridSearchCV</code>, which already forks its own joblib workers. Nesting process pools is a classic way to oversubscribe a machine into swap.</p>
+</section>
+
+
+<section>
+<h2 id="llm"><span class="num">05</span>The LLM analytics layer</h2>
+
+<p class="lede">After 15 model–technique combinations × 2 paradigms, a user has 30 result objects with four metrics each, plus CV distributions, residual plots and feature importances. The interpretation burden has moved, not disappeared — and interpreting it well needs both soil science and machine learning, which is exactly the expertise gap the project set out to close.</p>
+
+<h3>Architecture: abstraction, factory, cache</h3>
+
+<p>The layer is built on three standard patterns, and each earns its place.</p>
+
+<pre><code>class AIExplainer(ABC):
+    @abstractmethod
+    def explain_training_results(self, results_dict: Dict) -> str: ...
+    @abstractmethod
+    def explain_model_performance(self, model_metrics: Dict) -> str: ...
+    @abstractmethod
+    def explain_prediction(self, prediction, features, model_info) -> str: ...
+    @abstractmethod
+    def explain_feature_importance(self, importance_df) -> str: ...</code></pre>
+
+<p><strong>An abstract base class</strong> fixes the four operations the rest of the application may rely on. <code>GeminiExplainer</code> and <code>ChatGPTExplainer</code> implement it. The benefit is not theoretical: the two providers have incompatible SDKs — <code>genai.GenerativeModel(...).generate_content(prompt)</code> against <code>client.chat.completions.create(model=..., messages=[...])</code> — and without the interface, provider-specific calls would spread through 5,000 lines of UI code.</p>
+
+<p><strong>A factory</strong> (<code>AIExplainerFactory.create_explainer(provider=...)</code>) resolves a provider string to an instance, so provider choice becomes a configuration value rather than a branch at each call site. The UI exposes it as a radio button; adding a third provider is one new class and one line in the factory.</p>
+
+<p><strong>Prompt reuse across providers</strong> is handled by having <code>ChatGPTExplainer</code> delegate its prompt builders to <code>GeminiExplainer</code>'s static methods:</p>
+
+<pre><code>@staticmethod
+def _build_training_prompt(results_dict: Dict) -> str:
+    return GeminiExplainer._build_training_prompt(results_dict)</code></pre>
+
+<p>Slightly awkward — the prompts arguably belong in a shared module rather than on one concrete class — but it guarantees both providers receive <em>identical</em> prompts, which is what makes a provider swap a controlled change rather than a confound.</p>
+
+<h3>Context construction: the part that does the real work</h3>
+
+<p><code>services.py</code> is 3,163 lines, and the bulk is not API calls. It is <code>build_data_context()</code> and <code>build_training_context()</code>, which assemble a large structured text document from the actual results.</p>
+
+<p>The context is built as a list of formatted lines and joined — dataset shape, target statistics, top correlated features with their coefficients, preprocessing configuration, CV strategy and fold count, every model's metrics, and, when feature engineering ran, per-technique statistics (output shape, mean, std, range; explained variance for PCA; wavelet type for wavelets). Everything is pre-formatted to fixed precision (<code>f"{corr_value:.4f}"</code>) before it reaches the model.</p>
+
+<div class="note ok">
+<span class="tag">The design decision that makes this trustworthy</span>
+<p><strong>The LLM is never asked to compute anything.</strong> Every number it sees was computed in Python, by the same code path that populates the dashboard. The model's job is strictly to <em>explain and compare</em> values it is handed.</p>
+<p>This matters because the obvious failure mode of an LLM over numeric results is confident arithmetic that is subtly wrong — a model asked to "compute the average R² across these models" will produce a plausible number, and nobody will check it. Confining the model to narration over a verified context means a fabricated number has nowhere to come from: if it is not in the context it is not grounded, and the dashboard displays the authoritative value alongside.</p>
+<p>The architectural principle generalises well beyond this project: <strong>let the deterministic system compute and the language model explain.</strong> It is the same separation that makes retrieval-augmented generation work, applied to numeric results rather than documents.</p>
+</div>
+
+<h3>Prompt guardrails</h3>
+
+<p>The conversational path passes the assembled context and the user's question through a prompt whose instruction block is worth reading in full, because each line is a guard against an observed failure:</p>
+
+<pre><code>IMPORTANT INSTRUCTIONS:
+1. ALWAYS use the specific numbers and metrics from the context provided above.
+2. When mentioning R², RMSE, MAE, RPD, or any other metrics - REFERENCE THE ACTUAL VALUES.
+3. DO NOT say metrics are "N/A" or "missing" if they are shown in the context above.
+4. Be specific with numbers and metrics from the results.
+5. Reference the results directly with actual values.
+6. If explaining general ML concepts, relate them back to the specific results shown.
+7. Keep responses concise but thorough (200-300 words).
+8. Be helpful, informative, and professional.</code></pre>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Instruction</th><th>The failure it prevents</th></tr></thead>
+<tbody>
+<tr><td>1, 2, 4, 5 — use the actual values</td><td><strong>Generic advice.</strong> Without this, a model asked "which model is best?" tends to answer with a textbook comparison of PLSR and SVR in general rather than reading the table it was given. The redundancy across four instructions is not accidental; this is the dominant failure.</td></tr>
+<tr><td>3 — do not say "N/A"</td><td><strong>A specific, observed pathology.</strong> Faced with a long structured context, models sometimes fail to locate a value and report it missing — which is worse than a wrong answer, because it tells the user their pipeline is broken when it is not. The instruction is unusually specific because it was written in response to seeing it happen.</td></tr>
+<tr><td>6 — relate concepts back</td><td><strong>Unanchored tutorials.</strong> Keeps a question about an ML concept tied to this run's numbers.</td></tr>
+<tr><td>7 — 200–300 words</td><td><strong>Length drift.</strong> A hard range keeps answers scannable in a dashboard panel; without it, responses expand to fill the token budget.</td></tr>
+<tr><td>8 — tone</td><td>Register control for a professional audience.</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The role framing — <em>"You are an expert soil scientist and machine learning specialist helping users understand their model training results"</em> — sets domain and audience in one line. It matters more than it looks: it is what makes the model interpret "RPD" as the spectroscopy metric rather than guessing from the acronym.</p>
+
+<p>Honest assessment of these guardrails: they are <strong>instruction-level, not enforced</strong>. Nothing validates that the returned text actually cites values from the context, and a model that ignores instruction 3 produces an "N/A" answer that reaches the user unchallenged. A stronger design would post-validate — check that numbers appearing in the response exist in the context, or require structured output with a citation field. For a research tool with the authoritative values displayed adjacent, instruction-level guarding is a defensible stopping point; for anything consequential it would not be.</p>
+
+<h3>Graceful degradation</h3>
+
+<p>Every call is wrapped so a failure never propagates as an exception:</p>
+
+<pre><code>try:
+    response = self.model.generate_content(prompt)
+    return response.text
+except Exception as e:
+    logger.error(f"Error generating training explanation: {str(e)}")
+    return self._fallback_training_explanation(results_dict)</code></pre>
+
+<p>The fallback is a <em>template-based</em> explanation assembled in Python from the same results dict — no API, no network. So the feature degrades from "AI-written narrative" to "structured summary," and the application keeps working with no key, no quota, or no connectivity. The whole analytics layer is optional by construction: the initialising class catches a failure to construct the explainer and sets <code>ai_available = False</code>, and the UI checks that flag.</p>
+
+<p>Error handling at the UI layer is specific rather than generic, which is a small kindness that saves real debugging time:</p>
+
+<pre><code>if "insufficient_quota" in error_msg or "quota" in error_msg.lower():
+    st.error("❌ OpenAI API Quota Exceeded — check billing...")
+elif "429" in error_msg:
+    st.error("❌ API Rate Limited — wait a moment and try again.")</code></pre>
+
+<p>A quota error and a rate limit have completely different remedies — one needs a billing change, the other needs patience — and a generic "an error occurred" would conflate them.</p>
+
+<h3>Caching</h3>
+
+<pre><code>def _get_key(self, explanation_type: str, data: Any) -> str:
+    data_str = json.dumps(str(data), sort_keys=True)
+    return f"{explanation_type}:{hashlib.md5(data_str.encode()).hexdigest()}"</code></pre>
+
+<p>The cache is <strong>content-addressed</strong>: the key is an MD5 of the serialised input, so identical results produce identical keys regardless of when or how they were reached. Two benefits beyond cost. <em>Reproducibility</em> — the same question about the same run returns the same answer, which matters if the output goes into a report, and which a temperature-0.7 sampling call would otherwise not provide. And <em>latency</em> — a cache hit is instant where a call is seconds, which is the difference between a responsive dashboard and a frustrating one. Hit/miss counts and hit rate are tracked and exposed via <code>get_stats()</code>.</p>
+
+<p>Two limitations worth stating precisely:</p>
+
+<ul>
+<li><strong>Eviction is FIFO, not LRU.</strong> <code>self.cache.pop(next(iter(self.cache)))</code> removes the oldest <em>inserted</em> entry at 100 entries, regardless of how often it has been used. Since Python 3.7 dicts preserve insertion order, so this is genuinely FIFO. An LRU policy (<code>collections.OrderedDict</code> with <code>move_to_end</code> on hit, or <code>functools.lru_cache</code>) would keep frequently-asked questions resident; FIFO can evict the most popular entry simply because it was created first. At 100 entries for a single-user session this rarely bites, and the simpler code is defensible.</li>
+<li><strong>It does not persist.</strong> The cache is an in-memory dict on an <code>ExplainerWithCache</code> instance. It survives Streamlit reruns for as long as the owning object does, but <strong>not across process restarts</strong> — so the resume's description of caching "across sessions" overstates what is implemented. Persisting would mean writing to disk or SQLite keyed by the same hash, which is a small change and would make the reproducibility benefit durable.</li>
+</ul>
+
+<h3>Generation parameters, and a documentation mismatch</h3>
+
+<p>The OpenAI path sets <code>temperature=0.7</code> and <code>max_tokens=500</code> (800 for free-form queries). Temperature 0.7 is a conventional middle: 0 would be deterministic and repetitive across similar questions, 1.0+ risks drift into unsupported claims. Given that reproducibility is the cache's job here, a lower temperature would arguably suit a tool whose output is numeric explanation — 0.2–0.3 would reduce variance in the claims without making the prose robotic.</p>
+
+<p>The Gemini path passes <strong>no generation config at all</strong> — <code>generate_content(prompt)</code> with defaults — so the two providers are not configured identically despite receiving identical prompts. That is a real inconsistency: a provider comparison would be partly a comparison of their default sampling settings.</p>
+
+<p>One further mismatch worth recording, consistent with the Cubist discrepancy in §3: the resume and report describe the integration as <strong>"Gemini / GPT-4"</strong>, but <code>ChatGPTExplainer.__init__</code> defaults to <code>model="gpt-3.5-turbo"</code>, with GPT-4 available as an argument. The Gemini path requests <code>gemini-2.5-flash</code> with a <code>gemini-pro</code> fallback — and carries a stale log message claiming <code>gemini-1.5-pro</code>, a leftover from an earlier version.</p>
+</section>
+
+
+<section>
+<h2 id="application"><span class="num">06</span>The application</h2>
+
+<p>The Streamlit app is the largest part of the codebase — <code>interface.py</code> alone is 4,976 lines — and it is what turns a set of experiments into something a non-specialist can run.</p>
+
+<div class="note plain">
+<span class="tag">Design decision: Streamlit, and what it costs</span>
+<p><strong>Why it fits:</strong> the entire UI is Python, so there is no separate frontend, no API layer, and no serialisation boundary between the model objects and the display. For a five-person team whose expertise is ML rather than web development, that eliminates the largest source of work. Widgets are one-liners and the built-in dataframe and chart primitives cover most of what a results dashboard needs.</p>
+<p><strong>What it costs:</strong> Streamlit reruns the <em>entire script</em> on every widget interaction. Anything expensive must live behind <code>st.session_state</code> or a cache decorator, and getting that wrong means retraining 15 models when someone moves a slider. The 1,932-line <code>app.py</code> is largely session-state orchestration, and that is the tax.</p>
+<p><strong>Alternatives:</strong> <em>Flask or FastAPI plus a JS frontend</em> gives full control and proper request semantics, at the cost of building a frontend. <em>Dash</em> has an explicit callback graph — more code, but only the affected components recompute, which scales better as an app grows. <em>Gradio</em> is faster still for a single predict-and-display interface but is a poor fit for a multi-step stateful workflow like this one. <em>Jupyter + voila</em> keeps the notebook workflow but is fragile for anything with real control flow.</p>
+<p>For a tool whose job is to make a research pipeline usable by a soil scientist, Streamlit is the right trade. For a multi-user production service it would not be.</p>
+</div>
+
+<h3>Training mode</h3>
+
+<pre class="tree"><code>Load CSV
+   ↓  validation, type checking, missing-value handling
+Select target column
+   ↓  optional: data analytics · AI data insights · feature engineering
+Configure training
+   ↓  technique × scaler × CV strategy × search method
+Train  ──────────────┬──────────────────┐
+   Standard pipeline │  Tuned pipeline  │   (in parallel)
+   ──────────────────┴──────────────────┘
+   ↓
+Results: metrics · residual plots · feature importance ·
+         CV score distributions · model comparison ·
+         AI analysis · export (joblib / CSV / Markdown)</code></pre>
+
+<h3>Prediction mode, and the bug it closes</h3>
+
+<p>Load a saved model, upload new spectra, apply <em>the same</em> preprocessing configuration, predict, export.</p>
+
+<p>The preprocessing state is serialised <em>with</em> the model, and this closes the most common deployment bug in this kind of system. A <code>StandardScaler</code> fitted on the training set holds that set's per-band means and standard deviations. If those are not saved, prediction either re-fits a scaler on the new data — producing a <em>different</em> transformation, so the model receives inputs in a space it was never trained on — or skips scaling, which for SVR or KRR means the kernel computes distances in raw reflectance units and the predictions are nonsense. Both fail <em>silently</em>: the pipeline returns numbers, and the numbers are wrong.</p>
+
+<p><code>joblib</code> rather than <code>pickle</code> is the correct choice for the export: joblib special-cases large NumPy arrays with memory-mapped, efficiently-compressed storage, which matters for a GBRT ensemble or a kernel model carrying its support vectors. It shares pickle's security model — <strong>never load an untrusted joblib file</strong>, since unpickling executes arbitrary code — and its version fragility: a model pickled under one scikit-learn version may not load under another, which is why the export should travel with its environment. ONNX would be the portable alternative, at the cost of a conversion step and incomplete coverage of custom estimators like <code>CubistModel</code>.</p>
+
+<h3>Feature importance by permutation</h3>
+
+<p>Importance is computed by permutation rather than read off the model: shuffle one feature's column, measure how much the score degrades, repeat. This is the right choice for two reasons.</p>
+
+<p>It is <strong>model-agnostic</strong> — PLSR, SVR and KRR have no built-in importances, so a tree-specific measure would not let the five algorithms be compared on a common footing. And it measures what is actually wanted: <em>how much does prediction degrade when this wavelength's information is destroyed?</em> Tree-based (Gini) importance instead measures how often a feature was split on, which systematically overstates high-cardinality features and splits credit arbitrarily among correlated ones.</p>
+
+<p>Permutation importance has its own correlated-feature caveat, and it is severe here: permuting one band when its neighbour carries nearly identical information barely degrades the score, because the model simply reads the neighbour. With adjacent bands correlated at \(r > 0.99\), <strong>both</strong> appear unimportant. The honest reading of these importances is at the level of spectral <em>regions</em>, not individual bands. The rigorous fix is grouped permutation — shuffle a whole correlated block together — which is not implemented and would be the single most valuable addition to this part of the pipeline.</p>
+
+<h3>Three user personas</h3>
+
+<p>The report structures the interface around three users, and the structure shows in the code: a soil scientist with data and no ML background (guided defaults, AI explanation); an ML practitioner comparing approaches (full configuration, CV distributions, raw exports); and an operational user making predictions from an existing model (prediction mode only, no training path). Designing for the first and third is what the LLM layer and the serialised preprocessing are respectively for.</p>
+</section>
+
+
+<section>
+<h2 id="significance"><span class="num">07</span>Why this matters</h2>
+
+<h3>The economics</h3>
+
+<p>Conventional soil testing costs on the order of tens of dollars per sample and takes days to weeks. Spectroscopy costs essentially nothing per sample once the instrument exists and returns a reading in seconds. That difference changes what questions can be asked:</p>
+
+<ul>
+<li><strong>Precision agriculture.</strong> Fertiliser applied uniformly to a field that is not uniform is wasted on the rich parts and insufficient on the poor parts. Dense sampling makes variable-rate application possible. Over-application is also a direct cause of nitrate leaching and eutrophication, so the agronomic and environmental cases point the same way.</li>
+<li><strong>Soil carbon monitoring.</strong> Agricultural soil carbon sequestration only functions as a climate instrument if the carbon can be <em>measured</em> cheaply and repeatedly — carbon credit markets are bottlenecked on exactly this. A test \(R^2\) of 0.5 is not good enough to certify a credit, but it is good enough to screen which fields warrant laboratory confirmation, which is where the economics actually bind.</li>
+<li><strong>Degradation monitoring.</strong> Tracking organic matter decline across large areas needs a sampling density laboratory assay cannot reach at any realistic budget.</li>
+</ul>
+
+<h3>What an \(R^2\) of 0.48–0.58 means</h3>
+
+<p>Stated plainly: these models explain roughly half the variance. That is not a replacement for laboratory assay and the project does not claim it is. Published soil spectroscopy results typically report \(R^2\) between 0.5 and 0.8 depending on the property — organic carbon predicts well because C–H and C–O bonds absorb strongly; nitrogen and trace nutrients predict poorly because their spectral signatures are weak and largely <em>indirect</em>, inferred through correlation with organic matter rather than measured. Without knowing which of T1–T5 corresponds to which property, 0.48–0.58 sits in the normal published band.</p>
+
+<p>The operationally useful framing is <strong>triage</strong>. RPD ≈ 1.5 is in the screening band: not quantitative certification, but enough to rank a thousand field samples and send the ambiguous hundred to a laboratory. That inverts the economics of a monitoring programme without requiring the model to be better than it is.</p>
+
+<h3>What the engineering demonstrates</h3>
+
+<ul>
+<li><strong>Preprocessing as an experimental factor.</strong> Crossing three transforms with five algorithms, rather than fixing a transform and sweeping models, surfaces interactions — absorbance helps the linear and kernel models most, because it does the work of linearising the chemistry that those models cannot do themselves.</li>
+<li><strong>Measuring what tuning buys.</strong> Running standard and tuned pipelines in parallel is a small design decision with a disproportionate payoff: "+5–15% from tuning" is far more actionable than a single tuned score, and a null result would have been diagnostic.</li>
+<li><strong>Implementing a missing model rather than dropping it.</strong> Cubist is the field standard and has no good Python implementation. Building a labelled approximation is more useful than an incomplete comparison.</li>
+<li><strong>LLM over verified context, not over raw data.</strong> Computing every number in Python and restricting the model to explanation is the design that makes the feature trustworthy — and the principle transfers to any system putting a language model in front of computed results.</li>
+<li><strong>Serialising preprocessing state with the model.</strong> Unglamorous, and the thing most likely to silently break a deployed spectroscopy model.</li>
+<li><strong>Graceful degradation.</strong> The LLM layer is optional at every level — no key, no quota, no network, and the application still works.</li>
+</ul>
+</section>
+
+
+<section>
+<h2 id="limits"><span class="num">08</span>Limits</h2>
+
+<ul>
+<li><strong>Random train/test split, not spatial.</strong> Soil samples from the same field are spatially autocorrelated. A random 80/20 split can place neighbouring samples on both sides, inflating test scores relative to performance on a genuinely new site. Spatial or site-wise blocking is the rigorous alternative, and the gap between the two is usually substantial in soil work. This is the single largest methodological gap.</li>
+<li><strong>The Cubist blend is k-NN-dominant.</strong> As flagged in §3, the shipped model weights neighbours at 0.6 and the ensemble at 0.4, and <code>neighbors</code> is never tuned. It will extrapolate poorly outside the training spectra's neighbourhood.</li>
+<li><strong>Continuum removal is an envelope, not a convex hull.</strong> Shallow absorption features are partly removed along with the baseline.</li>
+<li><strong>No moisture correction.</strong> Water dominates 1400 and 1900 nm and shifts the whole baseline. Field spectra at varying moisture will behave much worse than laboratory-dried ones, and nothing in the pipeline addresses this. External parameter orthogonalisation or direct standardisation are the usual remedies.</li>
+<li><strong>No target transform.</strong> A 130-fold right-skewed range regressed on untransformed — see §1.</li>
+<li><strong>Permutation importance under near-perfect collinearity.</strong> Adjacent bands mask each other; importances should be read at region level. Grouped permutation would fix it.</li>
+<li><strong>LLM guardrails are instruction-level.</strong> Nothing validates that responses actually cite the context, and the cache does not persist across process restarts.</li>
+<li><strong>Five targets, modelled independently.</strong> Soil properties are correlated — organic carbon with nitrogen, clay with cation exchange capacity. A multi-target model could borrow strength across them.</li>
+<li><strong>100 bands is coarse.</strong> Real field spectrometers sample at 1–10 nm, giving 2,000+ bands. The ~21 nm spacing may smooth over narrow diagnostic features, though it also makes the statistics far more tractable.</li>
+<li><strong>Report–code discrepancies.</strong> Three are documented here (§3 blend direction and grid, §5 model naming). All small, but a reader working from the report alone would implement something different from what runs.</li>
+</ul>
+</section>
+
+
+<section>
+<h2 id="repro"><span class="num">09</span>Repository and reproduction</h2>
+
+<pre class="tree"><code>Team27_Spectral_Soil_Modeler/
+├── src/
+│   ├── app.py                 1,932 — Streamlit entry point, session state
+│   ├── interface.py           4,976 — all UI rendering, plots, result views
+│   ├── services.py            3,163 — LLM context building, provider classes,
+│   │                                  factory, cache, report generation
+│   ├── system.py              1,356 — logging, config, utilities
+│   ├── preprocessing.py         905 — 3 transforms, 3 scalers,
+│   │                                  6 feature-engineering techniques,
+│   │                                  outlier and missing-value handling
+│   ├── data_loader.py           516 — CSV loading, validation, splitting
+│   ├── evaluation.py            590 — R², RMSE, MAE, RPD, CV metrics
+│   ├── model_analyzer.py        675 — permutation importance, comparison
+│   └── models/
+│       ├── model_trainer.py     491 — dual-paradigm orchestration,
+│       │                              ThreadPoolExecutor parallelism
+│       ├── hyperparameter_tuner.py 354 — grids, Grid/Randomized search, LOO
+│       ├── cubist.py            377 — the GBRT + k-NN hybrid
+│       ├── svr.py · krr.py · gbrt.py · plsr.py
+├── Data for Project-1/        5 datasets, 500–600 × 100 bands + target
+│                              (named .xls, actually CSV — read with read_csv)
+├── Team27_Phase1.pdf          6 pp.
+├── Team27_Phase2.pdf          6 pp.
+└── Team27_FinalPhase.pdf      45 pp. — full documentation and user manual</code></pre>
+
+<pre><code>pip install -r src/requirements.txt
+streamlit run src/app.py        # → http://localhost:8501
+
+# optional — enables the analytics layer
+export GOOGLE_API_KEY=...       # or GEMINI_API_KEY
+export OPENAI_API_KEY=...</code></pre>
+
+<p>Everything except the LLM layer runs without a key. The data files carry an <code>.xls</code> extension but are plain CSV — <code>pandas.read_excel</code> will refuse them with an opaque engine error and <code>read_csv</code> is the correct reader, which is worth knowing before concluding the files are corrupt.</p>
+</section>
+
+
+<nav class="pager" aria-label="Other documents in this set">
+<a class="prev" href="03-algorithmic-collusion-audit-mechanism.html" rel="prev"><span class="dir">&larr; Previous</span><span class="t">Algorithmic Collusion Detection via Incentive-Compatible Audits</span></a>
+<a class="next" href="05-detection-of-computer-generated-text.html" rel="next"><span class="dir">Next &rarr;</span><span class="t">Detection of Computer-Generated Text</span></a>
+</nav>
+
+    </main>
+  </div>
+</div>
+
+<footer class="foot">
+  <div class="wrap">
+    <p><b>How this document was produced.</b> Written by reading the project's source code, reports and result files directly. Formulas, file paths, hyperparameters and numbers below were taken from the code as it stands, not from memory. Where the code and the written report disagree, both readings are shown and the disagreement is flagged rather than smoothed over.</p><p>Grid sizes, blend weights and transform formulas were recomputed from <code>src/models/</code> and <code>src/preprocessing.py</code>. Three places where the 45-page final report and the shipped code disagree are flagged in the text — the Cubist blend direction, its hyperparameter grid, and the LLM model naming. They are small, but a reader comparing the two should know which is which. The LLM analytics layer is described from <code>services.py</code> directly: the provider classes, the prompt guardrails, the fallbacks and the cache.</p>
+  </div>
+</footer>
+
+<button class="themer" id="themer" type="button">Theme</button>
+<script>
+(function(){
+  var b=document.getElementById('themer'), r=document.documentElement;
+  var saved=null; try{saved=localStorage.getItem('doc-theme')}catch(e){}
+  if(saved){r.setAttribute('data-theme',saved)}
+  b.addEventListener('click',function(){
+    var cur=r.getAttribute('data-theme');
+    if(!cur){cur=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}
+    var next=cur==='dark'?'light':'dark';
+    r.setAttribute('data-theme',next);
+    try{localStorage.setItem('doc-theme',next)}catch(e){}
+  });
+})();
+</script>
+
+</body>
+</html>
